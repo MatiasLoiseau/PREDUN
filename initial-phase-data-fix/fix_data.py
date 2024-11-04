@@ -1,5 +1,6 @@
 import csv
 import unicodedata
+import os
 
 # Function to replace '{' with '|'
 def replace_braces_with_pipe(text):
@@ -43,8 +44,14 @@ def process_file(input_file, output_file):
         writer.writerow(headers)  # Write the header row
         writer.writerows(rows)     # Write the processed rows
 
-# Example usage
-input_file = '../data-private/CURSADA_HISTORICA.txt'  # Replace with your actual input file path
-output_file = '../data-private/CURSADA_HISTORICA.csv'  # Replace with your desired output file path
+# Get the path to the script's directory
+script_dir = os.getcwd()
 
+# Define paths relative to the script's location
+input_file = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA.txt')
+output_file = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA.csv')
+
+# Process the file
 process_file(input_file, output_file)
+
+print("Finished")

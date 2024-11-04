@@ -1,11 +1,16 @@
 import pandas as pd
 import re
+import os
 
-# Ruta del archivo
-file_path = '../data-private/CURSADA_HISTORICA_03.csv'
+# Get the path to the script's directory
+script_dir = os.getcwd()
+
+# Define paths relative to the script's location
+input_file = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA_03.csv')
+output_file = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA_04.csv')
 
 # Cargar el archivo CSV
-df = pd.read_csv(file_path)
+df = pd.read_csv(input_file)
 
 # Renombrar columnas
 column_mapping = {
@@ -13,7 +18,7 @@ column_mapping = {
     'COD_CARRERA': 'COD_CARRERA',
     'NOM_CARRERA': 'NOM_CARRERA',
     'ANIO': 'ANIO',
-    'CUATRIMESTRE': 'CUATRIMESTRE',
+    'CUATRIMESTRE': 'TIPO_CURSADA',
     'COD_MATERIA': 'COD_MATERIA',
     'NOM_MATERIA': 'NOM_MATERIA',
     'COD_NOSE': 'NRO_ACTA',
@@ -68,4 +73,4 @@ df['RESULTADO'] = df['RESULTADO'].apply(clean_and_map_resultado)
 df.dropna(subset=['RESULTADO'], inplace=True)
 
 # Guardar el DataFrame modificado en un nuevo archivo CSV
-df.to_csv('../data-private/CURSADA_HISTORICA_04.csv', index=False)
+df.to_csv(output_file, index=False)

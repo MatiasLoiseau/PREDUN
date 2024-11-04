@@ -1,15 +1,14 @@
 import csv
 from datetime import datetime
+import os
 
+# Validation functions
 def validate_ID(value):
     if value == '':
         return True
     try:
         f = float(value)
-        if f.is_integer():
-            return True
-        else:
-            return False
+        return f.is_integer()
     except ValueError:
         return False
 
@@ -23,12 +22,7 @@ def validate_ANIO(value):
         return True
     try:
         f = float(value)
-        if f.is_integer():
-            i = int(f)
-            return 1000 <= i <= 9999
-            # Ensures it's a 4-digit integer
-        else:
-            return False
+        return f.is_integer() and 1000 <= int(f) <= 9999
     except ValueError:
         return False
 
@@ -60,13 +54,8 @@ def validate_FECHA(value):
 def validate_RESULTADO(value):
     if value == '':
         return True
-    allowed_words = [
-        "Regular", "Libre", "Promociono", "Abandono", "Insuficiente"
-    ]
-    for word in allowed_words:
-        if word in value:
-            return True
-    return False
+    allowed_words = ["Regular", "Libre", "Promociono", "Abandono", "Insuficiente"]
+    return any(word in value for word in allowed_words)
 
 def validate_NOTA(value):
     if value == '':
@@ -75,28 +64,27 @@ def validate_NOTA(value):
         i = int(value)
         return 0 <= i <= 10
     except ValueError:
-        return len(value) == 1  # Accept if it's a single character
+        return len(value) == 1  # Accept single character
 
 def validate_COD_NOSE(value):
     if value == '':
         return True
     try:
         f = float(value)
-        if f.is_integer():
-            return True
-        else:
-            return False
+        return f.is_integer()
     except ValueError:
         return False
 
 def validate_COD_NOSE_2(value):
-    if value == '':
-        return True
-    return value in ['R', 'P']
+    return value == '' or value in ['R', 'P']
 
-input_file = '../data-private/CURSADA_HISTORICA_02.csv'
-output_good = '../data-private/CURSADA_HISTORICA_03.csv'
-output_bad = '../data-private/CURSADA_HISTORICA_03_con_errores.csv'
+# Get the path to the script's directory
+script_dir = os.getcwd()
+
+# Define paths relative to the script's location
+input_file = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA_02.csv')
+output_good = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA_03.csv')
+output_bad = os.path.join(script_dir, 'data-private/CURSADA_HISTORICA_03_con_errores.csv')
 
 with open(input_file, 'r', encoding='utf-8') as infile, \
         open(output_good, 'w', encoding='utf-8', newline='') as goodfile, \
@@ -115,20 +103,17 @@ with open(input_file, 'r', encoding='utf-8') as infile, \
         if not row:
             continue
         if len(row) != 13:
-            # Indicate that the row has an incorrect number of columns
             row_with_error_info = row + ['Número incorrecto de columnas']
             bad_writer.writerow(row_with_error_info)
             continue
 
-        # Proceed to validate each field
+        # Validate each field
         field_validations = [
             validate_ID(row[0]),           # Column 1
             validate_COD_CARRERA(row[1]),  # Column 2
-            # NOM_CARRERA (Column 3): Any value is acceptable
             validate_ANIO(row[3]),         # Column 4
             validate_CUATRIMESTRE(row[4]), # Column 5
             validate_COD_MATERIA(row[5]),  # Column 6
-            # NOM_MATERIA (Column 7): Any value is acceptable
             validate_COD_NOSE(row[7]),     # Column 8
             validate_COD_NOSE_2(row[8]),   # Column 9
             validate_NOTA(row[9]),         # Column 10
@@ -138,14 +123,12 @@ with open(input_file, 'r', encoding='utf-8') as infile, \
         ]
 
         if not all(field_validations):
-            # Identify which columns failed validation
             validation_column_indices = [1, 2, 4, 5, 6, 8, 9, 10, 11, 12, 13]
             failed_columns = [
                 validation_column_indices[i]
                 for i, valid in enumerate(field_validations) if not valid
             ]
             failed_columns_str = ','.join(map(str, failed_columns))
-            # Add the failed columns info to the row
             row_with_error_info = row + [failed_columns_str]
             bad_writer.writerow(row_with_error_info)
         else:
