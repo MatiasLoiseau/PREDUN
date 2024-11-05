@@ -31,6 +31,10 @@ mapping = {
 # Aplicar el mapeo en la columna TIPO_CURSADA
 df['TIPO_CURSADA'] = df['TIPO_CURSADA'].map(mapping).fillna(df['TIPO_CURSADA'])
 
+# Convertir columnas de float a int
+for col in ['ID', 'ANIO', 'NRO_ACTA', 'RESULTADO']:
+    df[col] = df[col].fillna(0).astype(int)
+
 # Guardar el archivo resultante
 df.to_csv(output_file, index=False)
 
