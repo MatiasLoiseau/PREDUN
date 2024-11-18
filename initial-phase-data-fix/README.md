@@ -57,3 +57,21 @@ The final step adjusts the `NOTA` column to replace categorical grades with nume
   4. Save the modified DataFrame to a final CSV file.
 
 ---
+
+## Step 4: Converting Excel Data to CSV Format
+
+The fourth step involves reading data from an Excel file and converting it to a CSV file for easier processing and analysis.
+
+- **File**: `transform_xlsx_to_csv.py`
+
+### Code Overview
+
+- **Input File**: `data-private/CENSALES.xlsx`
+- **Output File**: `data-private/CENSALES.csv`
+- **Key Operations**:
+  1. Load the Excel file into a pandas DataFrame using `read_excel`.
+  2. Save the loaded data to a CSV file using `to_csv`, ensuring no index column is added.
+  3. Set the encoding to `utf-8` for compatibility with most systems.
+  4. Handle potential file errors gracefully with exception handling.
+
+---
