@@ -1,92 +1,53 @@
-# Initial Phase Data Fix
+# Initial Phase: Dataset Preparation and Transformation Process
 
-## Overview
-
-This part of the repository contains a series of Python scripts designed to process and clean the `CURSADA_HISTORICA` data. The data represents historical course enrollment information, and the scripts perform the following tasks in sequence:
-
-1. **Convert raw text data into a structured CSV format.**
-2. **Clean the CSV by removing invalid IDs.**
-3. **Validate data entries and separate valid and invalid rows.**
-4. **Standardize and map specific fields to consistent formats.**
-5. **Finalize the dataset by mapping course types and converting data types.**
-
-By following this pipeline, you'll transform the raw data into a clean, structured dataset ready for analysis.
+This document provides step-by-step instructions for processing a dataset from its raw format to a cleaned and transformed format, ready for EDA and further steps. The process involves three stages: reading and filtering the raw data, standardizing column values, and transforming specific columns for better usability.
 
 ---
 
-## Scripts and Their Functions
+## Step 1: Reading and Filtering the Dataset
 
-### 1. `fix_data.py`
+The first step is to read the raw data from a text file, filter valid rows, and save the data to a CSV file.
 
-- **Purpose:** Converts the raw text data file `CURSADA_HISTORICA.txt` into a structured CSV format `CURSADA_HISTORICA.csv`.
-- **Functions:**
-    - `replace_braces_with_pipe(text)`: Replaces `{` with `|` to standardize delimiters.
-    - `remove_special_characters(text)`: Removes Latin special characters (e.g., accents).
-    - `process_file(input_file, output_file)`: Processes the input file line by line, cleans it, and writes the structured data to a CSV file.
-- **Output:** `data-private/CURSADA_HISTORICA.csv`
+### Code Overview
 
----
-
-### 2. `fix_data_2.py`
-
-- **Purpose:** Cleans the CSV file by removing rows where the `ID` field is not numeric.
-- **Functions:**
-    - `clean_csv(file_path, output_file_path)`: Reads the CSV, removes invalid rows, and saves the cleaned data.
-- **Output:** `data-private/CURSADA_HISTORICA_02.csv`
+- **Input File**: `data-private/CURSADA_HISTORICA.txt`
+- **Output File**: `data-private/CURSADA_HISTORICA.csv`
+- **Key Operations**:
+  1. Define column names for the dataset.
+  2. Read the text file with a specific encoding (`ISO-8859-15`).
+  3. Filter rows with exactly 13 columns separated by `|`.
+  4. Convert filtered rows into a pandas DataFrame.
+  5. Save the DataFrame to a CSV file.
 
 ---
 
-### 3. `fix_data_3.py`
+## Step 2: Standardizing Column Values
 
-- **Purpose:** Validates each row in the CSV file based on predefined criteria, separates valid rows from invalid ones, and logs any errors.
-- **Functions:**
-    - Multiple `validate_*` functions for fields like `ID`, `COD_CARRERA`, `ANIO`, etc.
-- **Process:**
-    - Reads `CURSADA_HISTORICA_02.csv`.
-    - Validates each field in every row.
-    - Writes valid rows to `CURSADA_HISTORICA_03.csv`.
-    - Writes invalid rows and error details to `CURSADA_HISTORICA_03_con_errores.csv`.
-- **Outputs:**
-    - `data-private/CURSADA_HISTORICA_03.csv` (valid data)
-    - `data-private/CURSADA_HISTORICA_03_con_errores.csv` (invalid data with errors)
+The second step involves mapping and standardizing the values in the `TIPO_CURSADA` column.
 
----
+### Code Overview
 
-### 4. `fix_data_4.py`
-
-- **Purpose:** Cleans and standardizes the `RESULTADO` column by mapping various textual representations to consistent numeric codes.
-- **Functions:**
-    - `clean_and_map_resultado(value)`: Cleans strings and maps them to predefined numeric codes.
-- **Mappings:**
-    - `regular` ➔ `1`
-    - `promociono` ➔ `2`
-    - `abandono` ➔ `3`
-    - `libre` ➔ `4`
-    - `insuficiente` ➔ `5`
-    - `nopromociono` ➔ `6`
-- **Output:** `data-private/CURSADA_HISTORICA_04.csv`
+- **Input File**: `data-private/CURSADA_HISTORICA.csv`
+- **Output File**: `data-private/CURSADA_HISTORICA_02.csv`
+- **Key Operations**:
+  1. Load the initial CSV file.
+  2. Map verbose or inconsistent `TIPO_CURSADA` values to standardized short codes (e.g., `'1° cuatrimestre'` to `'1C'`).
+  3. Save the modified DataFrame to a new CSV file.
 
 ---
 
-### 5. `fix_data_5.py`
+## Step 3: Transforming Numeric Columns
 
-- **Purpose:** Finalizes the dataset by mapping course types to standardized abbreviations and converting specific columns to integer data types.
-- **Process:**
-    - Maps `TIPO_CURSADA` values to abbreviations (e.g., `1#uatrimestre` to `1C`).
-    - Converts columns like `ID`, `ANIO`, `NRO_ACTA`, and `RESULTADO` to integers.
-- **Output:** `data-private/CURSADA_HISTORICA_05.csv`
+The final step adjusts the `NOTA` column to replace categorical grades with numeric values.
+
+### Code Overview
+
+- **Input File**: `data-private/CURSADA_HISTORICA_02.csv`
+- **Output File**: `data-private/CURSADA_HISTORICA_final.csv`
+- **Key Operations**:
+  1. Load the standardized CSV file.
+  2. Replace categorical grades (`'A'` and `'R'`) with numeric equivalents (`7` and `1`).
+  3. Convert the `NOTA` column to a float type.
+  4. Save the modified DataFrame to a final CSV file.
 
 ---
-
-## Data Files
-
-- **Input Files:**
-    - `data-private/CURSADA_HISTORICA.txt`: Raw data file.
-- **Intermediate Files:**
-    - `data-private/CURSADA_HISTORICA.csv`
-    - `data-private/CURSADA_HISTORICA_02.csv`
-    - `data-private/CURSADA_HISTORICA_03.csv`
-    - `data-private/CURSADA_HISTORICA_03_con_errores.csv`
-    - `data-private/CURSADA_HISTORICA_04.csv`
-- **Final Output:**
-    - `data-private/CURSADA_HISTORICA_05.csv`: Cleaned and finalized dataset.
