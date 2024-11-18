@@ -8,7 +8,7 @@ This document provides step-by-step instructions for processing a dataset from i
 
 The first step is to read the raw data from a text file, filter valid rows, and save the data to a CSV file.
 
-- **File**: `fix_data.py`
+- **File**: `01_fix_data.py`
 
 ### Code Overview
 
@@ -27,7 +27,7 @@ The first step is to read the raw data from a text file, filter valid rows, and 
 
 The second step involves mapping and standardizing the values in the `TIPO_CURSADA` column.
 
-- **File**: `fix_data_02.py`
+- **File**: `02_fix_data.py`
 
 ### Code Overview
 
@@ -44,7 +44,7 @@ The second step involves mapping and standardizing the values in the `TIPO_CURSA
 
 The final step adjusts the `NOTA` column to replace categorical grades with numeric values.
 
-- **File**: `fix_data_03.py`
+- **File**: `03_fix_data.py`
 
 ### Code Overview
 
@@ -62,7 +62,7 @@ The final step adjusts the `NOTA` column to replace categorical grades with nume
 
 The fourth step involves reading data from an Excel file and converting it to a CSV file for easier processing and analysis.
 
-- **File**: `transform_xlsx_to_csv.py`
+- **File**: `04_transform_xlsx_to_csv.py`
 
 ### Code Overview
 
