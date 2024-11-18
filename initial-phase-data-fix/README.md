@@ -8,6 +8,8 @@ This document provides step-by-step instructions for processing a dataset from i
 
 The first step is to read the raw data from a text file, filter valid rows, and save the data to a CSV file.
 
+- **File**: `fix_data.py`
+
 ### Code Overview
 
 - **Input File**: `data-private/CURSADA_HISTORICA.txt`
@@ -25,6 +27,8 @@ The first step is to read the raw data from a text file, filter valid rows, and 
 
 The second step involves mapping and standardizing the values in the `TIPO_CURSADA` column.
 
+- **File**: `fix_data_02.py`
+
 ### Code Overview
 
 - **Input File**: `data-private/CURSADA_HISTORICA.csv`
@@ -39,6 +43,8 @@ The second step involves mapping and standardizing the values in the `TIPO_CURSA
 ## Step 3: Transforming Numeric Columns
 
 The final step adjusts the `NOTA` column to replace categorical grades with numeric values.
+
+- **File**: `fix_data_03.py`
 
 ### Code Overview
 
