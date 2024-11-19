@@ -75,3 +75,25 @@ The fourth step involves reading data from an Excel file and converting it to a 
   4. Handle potential file errors gracefully with exception handling.
 
 ---
+
+## Step 5: Cleaning and Transforming the Student List Data
+
+The fifth step focuses on cleaning and transforming a dataset of student information from a CSV file. This ensures the data is well-structured and ready for further analysis.
+
+- **File**: `05_clean_student_list.py`
+
+### Code Overview
+
+- **Input File**: `data-private/listado_alumnos.csv`
+- **Output File**: `data-private/listado_alumnos_final.csv`
+- **Key Operations**:
+  1. **Drop Rows with Missing Values**: Ensures all rows have a valid `legajo` (student ID) by removing any rows where it is null.
+  2. **Remove Unwanted Columns**: Drops unnecessary or placeholder columns (`Unnamed: 12`, `Unnamed: 13`, `Unnamed: 14`, `Unnamed: 15`), if they exist, to clean the dataset.
+  3. **Rename Columns**: Updates column names for better clarity and usability:
+    - `codigo` → `codigo_carrera`
+    - `nombre-2` → `nombre_carrera`
+    - `codigo-2` → `codigo_pertenece`
+    - `nombre-3` → `nombre_pertenece`
+  4. **Save the Cleaned Data**: Writes the cleaned and transformed DataFrame to a new CSV file (`listado_alumnos_final.csv`).
+
+---
