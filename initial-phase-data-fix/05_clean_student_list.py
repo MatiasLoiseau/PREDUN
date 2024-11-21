@@ -21,7 +21,7 @@ column_renaming = {
 df = df.rename(columns=column_renaming)
 
 # Save the cleaned DataFrame to a new CSV file
-output_file = 'data-private/listado_alumnos_final.csv'
+output_file = 'data-private/listado_alumnos_02.csv'
 df.to_csv(output_file, index=False)
 
 print(f"Cleaned CSV saved to {output_file}")

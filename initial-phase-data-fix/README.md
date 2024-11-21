@@ -85,7 +85,7 @@ The fifth step focuses on cleaning and transforming a dataset of student informa
 ### Code Overview
 
 - **Input File**: `data-private/listado_alumnos.csv`
-- **Output File**: `data-private/listado_alumnos_final.csv`
+- **Output File**: `data-private/listado_alumnos_02.csv`
 - **Key Operations**:
   1. **Drop Rows with Missing Values**: Ensures all rows have a valid `legajo` (student ID) by removing any rows where it is null.
   2. **Remove Unwanted Columns**: Drops unnecessary or placeholder columns (`Unnamed: 12`, `Unnamed: 13`, `Unnamed: 14`, `Unnamed: 15`), if they exist, to clean the dataset.
@@ -95,5 +95,25 @@ The fifth step focuses on cleaning and transforming a dataset of student informa
     - `codigo-2` → `codigo_pertenece`
     - `nombre-3` → `nombre_pertenece`
   4. **Save the Cleaned Data**: Writes the cleaned and transformed DataFrame to a new CSV file (`listado_alumnos_final.csv`).
+
+---
+
+## Step 6: Validating and Correcting the Student List Data
+
+The sixth step ensures that specific fields in the cleaned student list dataset meet the required criteria for consistency and correctness. Rows that fail to meet these conditions are removed.
+
+- **File**: `06_clean_student_list.py`
+
+### Code Overview
+
+- **Input File**: `data-private/listado_alumnos_final.csv`
+- **Output File**: `data-private/listado_alumnos_final_final.csv`
+- **Key Operations**:
+  1. **Validate `regular` Column**: Retain rows where the `regular` field contains only `'N'` or `'S'`.
+  2. **Validate `anio_academico` Column**: Ensure that the `anio_academico` field contains only valid 4-digit years.
+  3. **Filter `nombre_pertenece` Column**: Remove rows where the `nombre_pertenece` field contains invalid values:
+    - `'D SA'`, `'D CA'`, `'D CS'`, `'D PT'`, or `'UA AC'`.
+  4. **Validate `fecha_inscripcion` Column**: Ensure the `fecha_inscripcion` field follows the format `'YYYY-MM-DD HH:MM:SS'`.
+  5. **Save the Cleaned Data**: Write the validated and corrected dataset to a new CSV file (`listado_alumnos_final.csv`).
 
 ---
