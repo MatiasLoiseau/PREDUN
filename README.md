@@ -31,14 +31,6 @@ The dataset used in this project contains academic records for students enrolled
 
 To prepare the dataset for machine learning, certain categorical values have been mapped to numeric or standardized codes as follows:
 
-- **Mapping for RESULTADO Column**:
-    - `Regular`: 1
-    - `Promociono`: 2
-    - `Abandono`: 3
-    - `Libre`: 4
-    - `Insuficiente`: 5
-    - `No promociono`: 6
-
 - **Mapping for TIPO_CURSADA Column**:
     - `1Cuatrimestre`: `1C`
     - `2Cuatrimestre`: `2C`
