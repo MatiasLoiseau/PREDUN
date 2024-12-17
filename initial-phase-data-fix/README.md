@@ -4,13 +4,15 @@ This document provides step-by-step instructions for processing a dataset from i
 
 ---
 
-## Step 1: Reading and Filtering the Dataset
+## 1. Student History
+
+### Step 1.1: Reading and Filtering the Dataset
 
 The first step is to read the raw data from a text file, filter valid rows, and save the data to a CSV file.
 
-- **File**: `01_fix_data.py`
+- **File**: `history/01_fix_data.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/CURSADA_HISTORICA.txt`
 - **Output File**: `data-private/CURSADA_HISTORICA.csv`
@@ -23,13 +25,13 @@ The first step is to read the raw data from a text file, filter valid rows, and 
 
 ---
 
-## Step 2: Standardizing Column Values
+### Step 1.2: Standardizing Column Values
 
 The second step involves mapping and standardizing the values in the `TIPO_CURSADA` column.
 
-- **File**: `02_fix_data.py`
+- **File**: `history/02_fix_data.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/CURSADA_HISTORICA.csv`
 - **Output File**: `data-private/CURSADA_HISTORICA_02.csv`
@@ -40,13 +42,13 @@ The second step involves mapping and standardizing the values in the `TIPO_CURSA
 
 ---
 
-## Step 3: Transforming Numeric Columns
+### Step 1.3: Transforming Numeric Columns
 
 The final step adjusts the `NOTA` column to replace categorical grades with numeric values.
 
-- **File**: `03_fix_data.py`
+- **File**: `history/03_fix_data.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/CURSADA_HISTORICA_02.csv`
 - **Output File**: `data-private/CURSADA_HISTORICA_final.csv`
@@ -58,13 +60,13 @@ The final step adjusts the `NOTA` column to replace categorical grades with nume
 
 ---
 
-## Step 4: Converting Excel Data to CSV Format
+## 2. Converting Excel Data to CSV Format
 
 The fourth step involves reading data from an Excel file and converting it to a CSV file for easier processing and analysis.
 
-- **File**: `04_transform_xlsx_to_csv.py`
+- **File**: `ransform_xlsx_to_csv.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/CENSALES.xlsx`
 - **Output File**: `data-private/CENSALES.csv`
@@ -76,13 +78,15 @@ The fourth step involves reading data from an Excel file and converting it to a 
 
 ---
 
-## Step 5: Cleaning and Transforming the Student List Data
+## Student List
+
+### 3.1: Cleaning and Transforming the Student List Data
 
 The fifth step focuses on cleaning and transforming a dataset of student information from a CSV file. This ensures the data is well-structured and ready for further analysis.
 
-- **File**: `05_clean_student_list.py`
+- **File**: `students/01_clean_student_list.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/listado_alumnos.csv`
 - **Output File**: `data-private/listado_alumnos_02.csv`
@@ -98,13 +102,13 @@ The fifth step focuses on cleaning and transforming a dataset of student informa
 
 ---
 
-## Step 6: Validating and Correcting the Student List Data
+### Step 3.2: Validating and Correcting the Student List Data
 
 The sixth step ensures that specific fields in the cleaned student list dataset meet the required criteria for consistency and correctness. Rows that fail to meet these conditions are removed.
 
-- **File**: `06_clean_student_list.py`
+- **File**: `students/02_clean_student_list.py`
 
-### Code Overview
+#### Code Overview
 
 - **Input File**: `data-private/listado_alumnos_final.csv`
 - **Output File**: `data-private/listado_alumnos_final_final.csv`
