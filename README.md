@@ -9,6 +9,13 @@ PREDUN is an acronym for "Predicción de Deserción Universitaria en UNDAV".
 
 This project aims to develop and deploy machine learning models to predict student dropout rates at the Universidad Nacional de Avellaneda (UNDAV). By utilizing MLOps principles, the goal is to create a scalable, automated, and reproducible system that can predict which students are at risk of dropping out, thereby enabling timely interventions by the university administration.
 
+## To-Do List
+
+- Create EL process with Airbyte
+- Perform transformations with DBT
+- Orchestrate with Dagster
+- Integrate MLFlow
+
 ## Dataset Information
 
 The dataset used in this project contains academic records for students enrolled at UNDAV. Each row represents a unique record associated with a student's course enrollment or exam result. Key attributes are as follows:
@@ -32,15 +39,15 @@ The dataset used in this project contains academic records for students enrolled
 To prepare the dataset for machine learning, certain categorical values have been mapped to numeric or standardized codes as follows:
 
 - **Mapping for TIPO_CURSADA Column**:
-    - `1Cuatrimestre`: `1C`
-    - `2Cuatrimestre`: `2C`
-    - `Cursada de verano`: `V`
-    - `Anual`: `A`
-    - `1Trimestre`: `1T`
-    - `2Trimestre`: `2T`
-    - `3Trimestre`: `3T`
-    - `Microcredito-EAD`: `MC`
-    - `Mensual`: `M`
+  - `1Cuatrimestre`: `1C`
+  - `2Cuatrimestre`: `2C`
+  - `Cursada de verano`: `V`
+  - `Anual`: `A`
+  - `1Trimestre`: `1T`
+  - `2Trimestre`: `2T`
+  - `3Trimestre`: `3T`
+  - `Microcredito-EAD`: `MC`
+  - `Mensual`: `M`
 
 These mappings ensure consistency and facilitate model training by transforming categorical data into standardized numerical values.
 
