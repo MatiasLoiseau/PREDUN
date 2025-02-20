@@ -1,4 +1,5 @@
 import os
+import time
 import mlflow
 import pandas as pd
 from sqlalchemy import create_engine
@@ -22,25 +23,14 @@ FILES_TO_UPLOAD = [
     ("data-private/CURSADA_HISTORICA_final.csv",       "CURSADA_HISTORICA_2024_1C")
 ]
 
-# MLflow experiment name
 EXPERIMENT_NAME = "CSV_Upload_to_PostgreSQL"
-
-# Run tag
-DATA_VERSION_TAG = "2024_1C_v2"
+DATA_VERSION_TAG = "2024_1C_v3"
 
 def create_db_engine(db_params):
-    """
-    Builds the PostgreSQL connection URL and returns a SQLAlchemy engine.
-    """
     connection_url = f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['database']}"
     return create_engine(connection_url)
 
 def upload_csv_to_postgres(csv_path, table_name, engine, schema):
-    """
-    Reads a CSV using pandas and uploads it to the PostgreSQL table 'schema.table_name'.
-    If the table exists, it replaces it ('if_exists'='replace').
-    You can change it to 'append' or 'fail' based on your needs.
-    """
     df = pd.read_csv(csv_path)
     df.to_sql(
         name=table_name,
@@ -48,8 +38,8 @@ def upload_csv_to_postgres(csv_path, table_name, engine, schema):
         schema=schema,
         if_exists='replace',  # options: 'fail', 'replace', 'append'
         index=False
-    )
-    return len(df)
+    )   
+    return df
 
 def main():
     mlflow.set_tracking_uri("http://localhost:8002")
@@ -58,20 +48,37 @@ def main():
 
     with mlflow.start_run(run_name=f"Data Upload - {DATA_VERSION_TAG}"):
         mlflow.log_param("data_version", DATA_VERSION_TAG)
+        mlflow.log_param("db_host", DB_PARAMS["host"])
+        mlflow.log_param("db_name", DB_PARAMS["database"])
+        mlflow.log_param("db_schema", DB_PARAMS["schema"])
+
         total_rows = 0
 
         for csv_file, new_table_name in FILES_TO_UPLOAD:
-            row_count = upload_csv_to_postgres(
-                csv_path=csv_file,
-                table_name=new_table_name,
-                engine=engine,
-                schema=DB_PARAMS["schema"]
-            )
+            file_size = os.path.getsize(csv_file) / (1024 * 1024)  # Size in MB
+            start_time = time.time()
+            df = upload_csv_to_postgres(csv_file, new_table_name, engine, DB_PARAMS["schema"])
+            elapsed_time = time.time() - start_time
+            row_count = len(df)
+
             mlflow.log_artifact(csv_file, artifact_path=f"data_files/{DATA_VERSION_TAG}")
             mlflow.log_param(f"table_{new_table_name}", csv_file)
             mlflow.log_metric(f"rows_{new_table_name}", row_count)
-            total_rows += row_count
+            mlflow.log_metric(f"time_{new_table_name}_sec", round(elapsed_time, 2))
+            mlflow.log_param(f"columns_{new_table_name}", ", ".join(df.columns))
+            mlflow.log_metric(f"file_size_{new_table_name}_MB", round(file_size, 2))
+            mlflow.log_metric(f"missing_values_{new_table_name}", df.isnull().sum().sum())
+            mlflow.log_metric(f"duplicate_rows_{new_table_name}", df.duplicated().sum())
 
+            sample_path = f"data-private/sample_{new_table_name}.csv"
+            df.sample(n=min(10, len(df))).to_csv(sample_path, index=False)
+            mlflow.log_artifact(sample_path, artifact_path=f"data_samples/{DATA_VERSION_TAG}")
+
+            schema_path = f"data-private/schema_{new_table_name}.json"
+            df.dtypes.apply(str).to_json(schema_path)
+            mlflow.log_artifact(schema_path, artifact_path=f"data_schemas/{DATA_VERSION_TAG}")
+
+            total_rows += row_count
             print(f"File '{csv_file}' uploaded to table '{new_table_name}' with {row_count} rows.")
 
         mlflow.log_metric("total_rows_uploaded", total_rows)
