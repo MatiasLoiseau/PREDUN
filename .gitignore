@@ -9,6 +9,10 @@ data-private/
 .idea
 exploratory_analysis/
 
+# MLFlow runs and data
+mlruns
+mlflow/mlflow_data
+
 # C extensions
 *.so
 
