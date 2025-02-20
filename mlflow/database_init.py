@@ -26,7 +26,7 @@ FILES_TO_UPLOAD = [
 EXPERIMENT_NAME = "CSV_Upload_to_PostgreSQL"
 
 # Run tag
-DATA_VERSION_TAG = "2024_1C_v1"
+DATA_VERSION_TAG = "2024_1C_v2"
 
 def create_db_engine(db_params):
     """
@@ -49,6 +49,7 @@ def upload_csv_to_postgres(csv_path, table_name, engine, schema):
         if_exists='replace',  # options: 'fail', 'replace', 'append'
         index=False
     )
+    return len(df)
 
 def main():
     mlflow.set_tracking_uri("http://localhost:8002")
@@ -57,8 +58,10 @@ def main():
 
     with mlflow.start_run(run_name=f"Data Upload - {DATA_VERSION_TAG}"):
         mlflow.log_param("data_version", DATA_VERSION_TAG)
+        total_rows = 0
+
         for csv_file, new_table_name in FILES_TO_UPLOAD:
-            upload_csv_to_postgres(
+            row_count = upload_csv_to_postgres(
                 csv_path=csv_file,
                 table_name=new_table_name,
                 engine=engine,
@@ -66,20 +69,15 @@ def main():
             )
             mlflow.log_artifact(csv_file, artifact_path=f"data_files/{DATA_VERSION_TAG}")
             mlflow.log_param(f"table_{new_table_name}", csv_file)
+            mlflow.log_metric(f"rows_{new_table_name}", row_count)
+            total_rows += row_count
 
-            print(f"File '{csv_file}' uploaded to table '{new_table_name}'.")
-
-        total_rows = 0
-        for csv_file, _ in FILES_TO_UPLOAD:
-            df_temp = pd.read_csv(csv_file)
-            total_rows += len(df_temp)
+            print(f"File '{csv_file}' uploaded to table '{new_table_name}' with {row_count} rows.")
 
         mlflow.log_metric("total_rows_uploaded", total_rows)
-
         print(f"\nA total of {total_rows} rows were uploaded from all CSV files.")
 
     print("Data upload process completed and logged in MLflow.")
 
 if __name__ == "__main__":
     main()
-
