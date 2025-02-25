@@ -14,7 +14,18 @@ This project aims to develop and deploy machine learning models to predict stude
 - Create EL process with Airbyte
 - Perform transformations with DBT
 - Orchestrate with Dagster
-- Integrate MLFlow
+
+## Run MLflow
+
+```bash
+
+mlflow server \
+    --backend-store-uri postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$MLFLOW_POSTGRES_DB \
+    --default-artifact-root $MLFLOW_ARTIFACTS_PATH \
+    -h 0.0.0.0 \
+    -p 8002 
+
+```
 
 ## Dataset Information
 
