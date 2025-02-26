@@ -4,6 +4,7 @@ import mlflow
 import pandas as pd
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -17,10 +18,10 @@ DB_PARAMS = {
 }
 
 FILES_TO_UPLOAD = [
-    ("data-private/porcentaje_avance_100_por_100.csv", "AVANCE_2024_1C"),
-    ("data-private/listado_alumnos_final.csv",         "ALUMNOS_2024_1C"),
-    ("data-private/CENSALES.csv",                      "CENSALES_2024_1C"),
-    ("data-private/CURSADA_HISTORICA_final.csv",       "CURSADA_HISTORICA_2024_1C")
+    ("../data-private/porcentaje_avance_100_por_100.csv", "AVANCE_2024_1C"),
+    ("../data-private/listado_alumnos_final.csv",         "ALUMNOS_2024_1C"),
+    ("../data-private/CENSALES.csv",                      "CENSALES_2024_1C"),
+    ("../data-private/CURSADA_HISTORICA_final.csv",       "CURSADA_HISTORICA_2024_1C")
 ]
 
 EXPERIMENT_NAME = "CSV_Upload_to_PostgreSQL"
@@ -38,7 +39,7 @@ def upload_csv_to_postgres(csv_path, table_name, engine, schema):
         schema=schema,
         if_exists='replace',  # options: 'fail', 'replace', 'append'
         index=False
-    )   
+    )
     return df
 
 def main():
@@ -61,7 +62,6 @@ def main():
             elapsed_time = time.time() - start_time
             row_count = len(df)
 
-            mlflow.log_artifact(csv_file, artifact_path=f"data_files/{DATA_VERSION_TAG}")
             mlflow.log_param(f"table_{new_table_name}", csv_file)
             mlflow.log_metric(f"rows_{new_table_name}", row_count)
             mlflow.log_metric(f"time_{new_table_name}_sec", round(elapsed_time, 2))
@@ -70,13 +70,12 @@ def main():
             mlflow.log_metric(f"missing_values_{new_table_name}", df.isnull().sum().sum())
             mlflow.log_metric(f"duplicate_rows_{new_table_name}", df.duplicated().sum())
 
-            sample_path = f"data-private/sample_{new_table_name}.csv"
-            df.sample(n=min(10, len(df))).to_csv(sample_path, index=False)
-            mlflow.log_artifact(sample_path, artifact_path=f"data_samples/{DATA_VERSION_TAG}")
+            sample_df = df.sample(n=min(10, len(df)))
+            sample_json = sample_df.to_json(orient="records")
+            mlflow.log_text(sample_json, artifact_file=f"data_samples/{DATA_VERSION_TAG}/{new_table_name}_sample.json")
 
-            schema_path = f"data-private/schema_{new_table_name}.json"
-            df.dtypes.apply(str).to_json(schema_path)
-            mlflow.log_artifact(schema_path, artifact_path=f"data_schemas/{DATA_VERSION_TAG}")
+            schema_json = json.dumps(df.dtypes.apply(str).to_dict())
+            mlflow.log_text(schema_json, artifact_file=f"data_schemas/{DATA_VERSION_TAG}/{new_table_name}_schema.json")
 
             total_rows += row_count
             print(f"File '{csv_file}' uploaded to table '{new_table_name}' with {row_count} rows.")
