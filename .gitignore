@@ -6,8 +6,11 @@ __pycache__/
 # Private
 private/
 data-private/
-.idea
 exploratory_analysis/
+
+# Dataspell metadata
+.idea
+.DS_Store
 
 # MLFlow runs and data
 mlruns
