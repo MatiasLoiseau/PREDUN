@@ -58,7 +58,7 @@ These mappings ensure consistency and facilitate model training by transforming 
 conda create -n mlflow-predun python=3.12
 conda activate mlflow-predun
 pip install mlflow
-conda install -c conda-forge psycopg2
+conda install -c conda-forge psycopg2 python-dotenv
 ```
 
 ### 2. Setting Up Environment Variables
