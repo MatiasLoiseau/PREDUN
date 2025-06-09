@@ -1,0 +1,95 @@
+version: v2025_2C
+
+input:
+  path: data-private/CURSADA_HISTORICA/2025_1C/historico_cursada.txt   # ← adjust if filename changes
+  delimiter: "|"
+  encoding: ISO-8859-15                              # use "utf-8" if file comes that way
+  expected_columns: 18                               # controls corrupt rows
+
+columns:
+  # ⇢ Headers as they arrive in the TXT file
+  source:
+    - legajo
+    - apellido
+    - nombres
+    - tipo_documento
+    - nro_documento
+    - codigo
+    - nombre
+    - anio_academico
+    - nombre-2
+    - codigo-2
+    - nombre_abreviado
+    - nro_acta
+    - origen
+    - nota
+    - fecha
+    - fecha_vigencia
+    - nombre-3
+    - email
+
+  # ⇢ Renames to keep the same "contract" as v2025_06
+  rename:
+    legajo: ID
+    codigo: COD_CARRERA
+    nombre: NOM_CARRERA
+    anio_academico: ANIO
+    nombre-2: TIPO_CURSADA
+    codigo-2: COD_MATERIA
+    nombre_abreviado: NOM_MATERIA
+    nro_acta: NRO_ACTA
+    origen: ORIGEN
+    nota: NOTA
+    fecha: FECHA
+    fecha_vigencia: FECHA_VIGENCIA
+    nombre-3: RESULTADO
+
+  # ⇢ Dispensable columns
+  drop:
+    - apellido
+    - nombres
+    - tipo_documento
+    - nro_documento
+    - email
+
+# ──────────────────────────────
+#  Value normalizations
+# ──────────────────────────────
+value_mappings:
+  TIPO_CURSADA:
+    '1° cuatrimestre': '1C'
+    '2° cuatrimestre': '2C'
+    '1º Cuatrimestre': '1C'
+    'Cursada de verano': 'V'
+    'Anual': 'A'
+    '3° trimestre': '3T'
+    '1° trimestre': '1T'
+    '2° trimestre': '2T'
+    'Curso de Verano': 'V'
+    'Microcredito-EAD': 'MC'
+    'Cursada de Verano': 'V'
+    'Verano 2023': 'V'
+    '1° mensual': 'M'
+    '2° Trimestre': '2T'
+    '2° bimestre': '2B'
+
+  NOTA:
+    'A': 7
+    'R': 1
+
+# ──────────────────────────────
+#  Type conversions
+# ──────────────────────────────
+types:
+  NOTA: float         # numeric; unrecognized strings ⇒ NaN
+
+# Clean null literals before casting
+null_values: ["NULL", "null", ""]
+
+# ──────────────────────────────
+#  Output file
+# ──────────────────────────────
+output:
+  path: data-private/CURSADA_HISTORICA/2025_1C/historico_cursada.csv
+  delimiter: ","
+  encoding: utf-8
