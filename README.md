@@ -124,7 +124,7 @@ Access PostgreSQL inside the container:
 psql -U postgres
 ```
 
-#### 4. Install PostgreSQL Client (Optional)
+#### (Optional) Install PostgreSQL Client
 
 ```bash
 sudo apt install postgresql-client-16
@@ -132,7 +132,7 @@ export PGPASSWORD=$POSTGRES_PASSWORD
 psql -U postgres -h localhost -p 5432
 ```
 
-#### 5. Create the MLFlow Database
+#### 4. Create the MLFlow Database
 
 Run these SQL commands to set up the database:
 
