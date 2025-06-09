@@ -27,12 +27,17 @@ def load_config(cfg_path: str) -> dict:
 def read_raw(cfg: dict) -> pd.DataFrame:
     inp = cfg["input"]
     path = pathlib.Path(inp["path"])
+
     if not path.exists():
         raise FileNotFoundError(f"No existe el archivo de entrada: {path}")
 
-    if path.suffix.lower() == ".txt":             
+    if path.suffix.lower() == ".txt":
         with open(path, "r", encoding=inp.get("encoding", "utf-8")) as fh:
-            lines = [l.strip() for l in fh]
+            lines = [l.rstrip("\n") for l in fh]
+
+        if inp.get("header_in_file", False):
+            header_line = lines.pop(0)
+
         rows = [
             l.split(inp.get("delimiter", "|"))
             for l in lines
@@ -40,13 +45,17 @@ def read_raw(cfg: dict) -> pd.DataFrame:
             or len(l.split(inp.get("delimiter", "|"))) == inp["expected_columns"]
         ]
         df = pd.DataFrame(rows, columns=cfg["columns"]["source"])
-    else:                                          
+
+    else:
         df = pd.read_csv(
             path,
             sep=inp.get("delimiter", ","),
             encoding=inp.get("encoding", "utf-8"),
+            header=0 if inp.get("header_in_file") else None,
+            names=cfg["columns"]["source"] if not inp.get("header_in_file") else None,
         )
-    logging.info("Leídas %s filas desde %s", len(df), path)
+
+    logging.info("Leídas %s filas (sin cabecera) desde %s", len(df), path)
     return df
 
 def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:

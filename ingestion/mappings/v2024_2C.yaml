@@ -6,6 +6,7 @@ input:                         # How the file arrives
   delimiter: "|"
   encoding: ISO-8859-15
   expected_columns: 13         # Filter corrupt rows by count
+  header_in_file: false
 
 columns:                       # Column definitions
   source:                      # Original order in TXT
