@@ -148,6 +148,11 @@ GRANT ALL ON SCHEMA example_schema TO "example_user";
 
 ## Run MLflow
 
+Remember load the environment variables
+
+```bash
+set -o allexport && source .env && set +o allexport
+```
 ```bash
 mlflow server \
     --backend-store-uri postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@$POSTGRES_HOST/$MLFLOW_POSTGRES_DB \
