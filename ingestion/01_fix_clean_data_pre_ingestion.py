@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Data Ingestion Flexible con Metadata-driven Mapping
-Ingesta y transformación de datos parametrizada por YAML.
-Uso:
-    python ingestion/ingest.py ingestion/mappings/v2024_2C.yml
+Data Ingestion Flexible with Metadata-driven Mapping
+Use:
+    python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/v2024_2C.yml
 """
 import sys
 import logging
@@ -29,7 +28,7 @@ def read_raw(cfg: dict) -> pd.DataFrame:
     path = pathlib.Path(inp["path"])
 
     if not path.exists():
-        raise FileNotFoundError(f"No existe el archivo de entrada: {path}")
+        raise FileNotFoundError(f"File does not exits: {path}")
 
     if path.suffix.lower() == ".txt":
         with open(path, "r", encoding=inp.get("encoding", "utf-8")) as fh:
@@ -55,7 +54,7 @@ def read_raw(cfg: dict) -> pd.DataFrame:
             names=cfg["columns"]["source"] if not inp.get("header_in_file") else None,
         )
 
-    logging.info("Leídas %s filas (sin cabecera) desde %s", len(df), path)
+    logging.info("%s rows read (sin cabecera) from %s", len(df), path)
     return df
 
 def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
@@ -94,11 +93,11 @@ def write_out(df: pd.DataFrame, cfg: dict) -> None:
         encoding=out.get("encoding", "utf-8"),
         index=False,
     )
-    logging.info("Archivo final guardado en %s (%s filas)", out["path"], len(df))
+    logging.info("Final file save in %s (%s filas)", out["path"], len(df))
 
 def main():
     if len(sys.argv) < 2:
-        print("Uso: python ingest.py <config.yml>")
+        print("Use: python 01_fix_clean_data_pre_ingestion.py <config.yml>")
         sys.exit(1)
 
     cfg_path = sys.argv[1]
