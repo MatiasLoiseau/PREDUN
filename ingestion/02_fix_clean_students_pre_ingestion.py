@@ -2,131 +2,165 @@
 """
 Flexible Student Data Ingestion (metadata-driven)
 
-This script turns heterogeneous CSV/TXT files into a harmonised,
-de-identified CSV using nothing but the rules contained in a YAML file.
+Usage
+-----
+    python ingestion/ingest_students.py <config.yml>
 
-• Sensitive columns (names, document numbers, phones, e-mails, …) are
-  dropped by listing them under  columns.drop  in the YAML.
-• Column names are standardised through  columns.rename.
-• Additional mappings, type casts, null normalisation and column order
-  are likewise declarative.
+The script
+
+1. Loads a YAML configuration that describes the raw file.
+2. Reads the raw data (TXT/CSV, any delimiter, optional header).
+3. Drops sensitive or unwanted columns.
+4. Applies renames, value mappings and type casts.
+5. Adds missing columns (filled with NaN) and re-orders them
+   so every version ends with the **same canonical schema**.
+6. Writes the cleaned data set to the CSV location defined
+   in the YAML file.
 """
-from __future__ import annotations
 
 import sys
 import logging
 import pathlib
+from typing import Dict, List, Any
 import yaml
 import numpy as np
 import pandas as pd
 
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s • %(levelname)s • %(message)s",
+    format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-def load_config(cfg_path: str) -> dict:
-    with open(cfg_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+# Columns that must **never** reach the final dataset
+SENSITIVE_COLS = {
+    "apellido",
+    "nombres",
+    "nro_documento",
+    "telefono_numero",
+    "telefono",
+    "email",
+}
 
-def read_raw(cfg: dict) -> pd.DataFrame:
-    """Reads the raw file exactly once, applying only very light cleaning:
-       * removes unnamed columns automatically
-       * keeps rows whose length equals expected_columns when that is set"""
+# Helper functions
+def load_config(cfg_path: str) -> Dict[str, Any]:
+    """Load YAML configuration from disk."""
+    with open(cfg_path, "r", encoding="utf-8") as fh:
+        return yaml.safe_load(fh)
+
+
+def read_raw(cfg: Dict[str, Any]) -> pd.DataFrame:
+    """Read the raw file according to the metadata in `cfg`."""
     inp = cfg["input"]
-    path = pathlib.Path(inp["path"]).expanduser()
+    path = pathlib.Path(inp["path"])
 
     if not path.exists():
-        raise FileNotFoundError(f"Input file not found: {path}")
+        raise FileNotFoundError(f"File does not exist: {path}")
 
-    read_kwargs = dict(
-        sep=inp.get("delimiter", ","),
-        encoding=inp.get("encoding", "utf-8"),
-        header=0 if inp.get("header_in_file", True) else None,
-    )
+    # Choose pandas reader based on extension
+    read_kwargs = {
+        "sep": inp.get("delimiter", ","),
+        "encoding": inp.get("encoding", "utf-8"),
+        "dtype": str,  # keep all as string initially
+        "quoting": 0,  # leave quoting untouched
+        "keep_default_na": False,
+    }
 
-    df = pd.read_csv(path, **read_kwargs)
+    header = 0 if inp.get("header_in_file", False) else None
+    if header is None:
+        read_kwargs["names"] = cfg["columns"]["source"]
 
-    # If header not present, assign provided source columns
-    if not inp.get("header_in_file", True):
-        df.columns = cfg["columns"]["source"]
+    if path.suffix.lower() in {".txt", ".csv"}:
+        df = pd.read_csv(path, header=header, **read_kwargs)
+    else:
+        raise ValueError(f"Unsupported file type: {path.suffix}")
 
-    # Drop unnamed pandas auto-generated columns
-    df = df.loc[:, ~df.columns.astype(str).str.match(r"Unnamed")]
+    expected_cols = inp.get("expected_columns")
+    if expected_cols and df.shape[1] != expected_cols:
+        raise ValueError(f"Expected {expected_cols} columns, but got {df.shape[1]} in file {inp['path']}")
 
-    # Optionally filter malformed rows
-    exp_cols = inp.get("expected_columns")
-    if exp_cols:
-        df = df[df.shape[1] == exp_cols]
-
-    logging.info("%s rows read from %s", len(df), path)
+    logging.info("Loaded %s rows from %s", len(df), path)
     return df
 
-def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
-    NULL_LIKE = cfg.get("null_values", ["NULL", "null", "", "NaN"])
+def sanitize(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop any column that is considered sensitive, even if the user
+    forgot to list it in `drop`.
+    """
+    cols_to_drop = [c for c in df.columns if c.lower() in SENSITIVE_COLS]
+    return df.drop(columns=cols_to_drop, errors="ignore")
 
-    # 1. rename --------------------------------------------------------
-    rename_map = cfg["columns"].get("rename", {})
-    df = df.rename(columns=rename_map)
+def transform(df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
+    """Apply renames, drops, value mappings and type casts."""
+    col_cfg = cfg["columns"]
 
-    # 2. drop columns (explicit + duplicates + unnamed), always ignore errors
-    drop_cols = set(cfg["columns"].get("drop", []))
-    drop_cols.update(c for c in df.columns if "Unnamed" in str(c))
-    df = df.drop(columns=[c for c in drop_cols if c in df.columns], errors="ignore")
+    # 1. Drop columns requested by the user
+    raw_drop = col_cfg.get("drop", [])
+    if isinstance(raw_drop, dict):
+        raise ValueError(f"Expected list for 'columns.drop', got dict: {raw_drop}")
+    elif isinstance(raw_drop, list):
+        df = df.drop(columns=raw_drop, errors="ignore")
+    else:
+        raise ValueError(f"Unexpected type for 'columns.drop': {type(raw_drop)}")
 
-    # 3. normalise null semantics
-    df.replace(NULL_LIKE, np.nan, inplace=True)
+    # 2. Force-drop sensitive columns
+    df = sanitize(df)
 
-    # 4. value mappings -----------------------------------------------
+    # 3. Rename to canonical names
+    df = df.rename(columns=col_cfg.get("rename", {}))
+
+    # 4. Map values (normalisations)
     for col, mapping in cfg.get("value_mappings", {}).items():
         if col in df.columns:
             df[col] = df[col].map(mapping).fillna(df[col])
 
-    # 5. type casting --------------------------------------------------
-    for col, dtype in cfg.get("types", {}).items():
-        if col in df.columns:
-            if dtype in {"float", "int"}:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-            elif dtype == "datetime":
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-            else:
-                df[col] = df[col].astype(dtype, errors="ignore")
+    # 5. Cast types
+    null_like = set(cfg.get("null_values", ["NULL", "null", ""]))
+    df.replace(list(null_like), np.nan, inplace=True)
 
-    # 6. final column order (if provided)
-    target_cols = cfg["columns"].get("target")
-    if target_cols:
-        # Add any missing columns so output schema is always identical
-        for col in target_cols:
-            if col not in df.columns:
-                df[col] = np.nan
-        df = df[target_cols]
+    for col, dtype in cfg.get("types", {}).items():
+        if col not in df.columns:
+            continue
+        if dtype == "float":
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+        elif dtype == "int":
+            df[col] = pd.to_numeric(df[col], errors="coerce").dropna().astype(int)
+        else:
+            df[col] = df[col].astype(dtype)
+
+    # 6. Ensure canonical schema
+    target_cols: List[str] = col_cfg["target"]
+    for missing in (set(target_cols) - set(df.columns)):
+        df[missing] = np.nan
+    df = df[target_cols]  # re-order
 
     return df
 
-def write_out(df: pd.DataFrame, cfg: dict) -> None:
+def write_out(df: pd.DataFrame, cfg: Dict[str, Any]) -> None:
+    """Persist the cleaned DataFrame to a CSV file."""
     out = cfg["output"]
-    path = pathlib.Path(out["path"]).expanduser()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = pathlib.Path(out["path"])
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     df.to_csv(
-        path,
+        out_path,
         sep=out.get("delimiter", ","),
         encoding=out.get("encoding", "utf-8"),
         index=False,
     )
-    logging.info("File saved to %s • %s rows", path, len(df))
+    logging.info("Saved %s rows to %s", len(df), out_path)
 
 def main() -> None:
     if len(sys.argv) < 2:
-        sys.exit("Usage: python 02_fix_clean_students_pre_ingestion.py <config.yml>")
+        sys.exit("Usage: python ingest_students.py <config.yml>")
 
     cfg_path = sys.argv[1]
     cfg = load_config(cfg_path)
 
-    df = read_raw(cfg)
-    df = transform(df, cfg)
-    write_out(df, cfg)
+    df_raw = read_raw(cfg)
+    df_clean = transform(df_raw, cfg)
+    write_out(df_clean, cfg)
 
 if __name__ == "__main__":
     main()

@@ -1,13 +1,13 @@
-version: students_v2025_1C
+version: v2025_1C
 
 input:
   path: data-private/STUDENTS/2025_1C/alumnos20250514.csv
   delimiter: ","
-  encoding: utf-8
+  encoding: ISO-8859-1
   header_in_file: true
+  expected_columns: 38
 
 columns:
-  # Header of original file (38 columns)
   source:
     - persona
     - alumno
@@ -49,20 +49,11 @@ columns:
     - email
 
   rename:
-    legajo: STUDENT_ID
-    calidad: STATUS
-    plan_codigo: PLAN_CODE
-    plan_nombre: PLAN_NAME
-    anio_academico: ACADEMIC_YEAR
-    fecha_inscripcion: ENROLMENT_DATE
-    tipo_ingreso: ADMISSION_TYPE
-    regular: REGULAR
-    codigo: CAREER_CODE
-    nombre-2: CAREER_NAME
-    codigo-2: DEPT_CODE
-    nombre-3: DEPT_NAME
+    codigo: codigo_carrera
+    nombre-2: nombre_carrera
+    codigo-2: codigo_pertenece
+    nombre-3: nombre_pertenece
 
-  # Everything considered PII or not part of the standard schema
   drop:
     - persona
     - alumno
@@ -70,50 +61,43 @@ columns:
     - nro_documento
     - apellido
     - nombres
-    - fecha_nacimiento
-    - nacionalidad
     - localidad_nacimiento
     - dto_nacimiento
     - provicia_nacimiento
-    - pais_nacimiento
-    - sexo
     - descripcion
-    - identidad_genero
-    - nombre       # internal code duplicate
     - periodo_lectivo_calle
     - periodo_lectivo_numero
     - periodo_lectivo_piso
     - periodo_lectivo_departamento
-    - localidad_nombre
-    - dpto_partido_nombre
     - provincia_nombre
-    - pais_nombre
     - telefono_numero
     - email
 
   target:
-    - STUDENT_ID
-    - STATUS
-    - PLAN_CODE
-    - PLAN_NAME
-    - ACADEMIC_YEAR
-    - ENROLMENT_DATE
-    - ADMISSION_TYPE
-    - REGULAR
-    - CAREER_CODE
-    - CAREER_NAME
-    - DEPT_CODE
-    - DEPT_NAME
+    - legajo
+    - calidad
+    - nombre
+    - plan_nombre
+    - plan_codigo
+    - anio_academico
+    - fecha_inscripcion
+    - regular
+    - codigo_carrera
+    - nombre_carrera
+    - codigo_pertenece
+    - nombre_pertenece
+    - fecha_nacimiento
+    - nacionalidad
+    - pais_nacimiento
+    - sexo
+    - identidad_genero
+    - tipo_ingreso
+    - dpto_partido_nombre
+    - localidad_nombre
+    - pais_nombre
 
-value_mappings:
-  STATUS:
-    A: Active
-    P: Graduated
-
-types:
-  ACADEMIC_YEAR: int
-  ENROLMENT_DATE: datetime
-
+value_mappings: {}
+types: {}
 null_values: ["NULL", "null", ""]
 
 output:

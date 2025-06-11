@@ -1,15 +1,14 @@
-# Harmonised students file – schema 2024_2C
-version: students_v2024_2C
+version: v2024_2C
 
 input:
   path: data-private/STUDENTS/2024_2C/listado_alumnos.csv
   delimiter: ","
   encoding: utf-8
-  expected_columns: 16
   header_in_file: true
+  expected_columns: 16
 
 columns:
-  # Original header order
+  # Raw headers in the source file
   source:
     - legajo
     - calidad
@@ -28,48 +27,37 @@ columns:
     - Unnamed: 14
     - Unnamed: 15
 
-  # Map to the harmonised names ↓
+  # Map raw → canonical
   rename:
-    legajo: STUDENT_ID
-    calidad: STATUS
-    plan_codigo: PLAN_CODE
-    plan_nombre: PLAN_NAME
-    anio_academico: ACADEMIC_YEAR
-    fecha_inscripcion: ENROLMENT_DATE
-    regular: REGULAR
-    codigo: CAREER_CODE
-    nombre-2: CAREER_NAME
-    codigo-2: DEPT_CODE
-    nombre-3: DEPT_NAME
+    codigo: codigo_carrera
+    nombre-2: nombre_carrera
+    codigo-2: codigo_pertenece
+    nombre-3: nombre_pertenece
 
-  # Sensitive or useless columns to drop
+  # Drop noise + sensitive fields (telephone/e-mail absent here)
   drop:
-    - nombre          # holds internal code replicated elsewhere
-    - Unnamed: 12
-    - Unnamed: 13
-    - Unnamed: 14
-    - Unnamed: 15
+    - "Unnamed: 12"
+    - "Unnamed: 13"
+    - "Unnamed: 14"
+    - "Unnamed: 15"
 
-  # Final order enforced in transform()
+  # Final canonical schema all versions must share
   target:
-    - STUDENT_ID
-    - STATUS
-    - PLAN_CODE
-    - PLAN_NAME
-    - ACADEMIC_YEAR
-    - ENROLMENT_DATE
-    - REGULAR
-    - CAREER_CODE
-    - CAREER_NAME
-    - DEPT_CODE
-    - DEPT_NAME
+    - legajo
+    - calidad
+    - nombre
+    - plan_nombre
+    - plan_codigo
+    - anio_academico
+    - fecha_inscripcion
+    - regular
+    - codigo_carrera
+    - nombre_carrera
+    - codigo_pertenece
+    - nombre_pertenece
 
 value_mappings: {}
-
-types:
-  ACADEMIC_YEAR: int
-  ENROLMENT_DATE: datetime
-
+types: {}
 null_values: ["NULL", "null", ""]
 
 output:
