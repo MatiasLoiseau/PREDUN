@@ -1,0 +1,42 @@
+2024_2C:
+  file: "data-private/2024_2C/listado_alumnos_clean.csv"
+  delimiter: ","
+  schema:
+    legajo:              {source: "legajo"}
+    calidad:             {source: "calidad"}
+    nombre:              {source: "nombre"}
+    plan_nombre:         {source: "plan_nombre"}
+    plan_codigo:         {source: "plan_codigo"}
+    anio_academico:      {source: "anio_academico",      type: int}
+    fecha_inscripcion:   {source: "fecha_inscripcion",   type: date, format: "%Y-%m-%d %H:%M:%S"}
+    regular:             {source: "regular"}
+    codigo_carrera:      {source: "codigo_carrera"}
+    nombre_carrera:      {source: "nombre_carrera"}
+    codigo_pertenece:    {source: "codigo_pertenece"}
+    nombre_pertenece:    {source: "nombre_pertenece"}
+
+2025_1C:
+  file: "data-private/2025_1C/alumnos20250514_clean.csv"
+  delimiter: ","
+  schema:
+    legajo:              {source: "legajo"}
+    calidad:             {source: "calidad"}
+    nombre:              {source: "nombre"}
+    plan_nombre:         {source: "plan_nombre"}
+    plan_codigo:         {source: "plan_codigo"}
+    anio_academico:      {source: "anio_academico",      type: int}
+    fecha_inscripcion:   {source: "fecha_inscripcion",   type: date, format: "%Y-%m-%d"}
+    regular:             {source: "regular"}
+    codigo_carrera:      {source: "codigo_carrera"}
+    nombre_carrera:      {source: "nombre_carrera"}
+    codigo_pertenece:    {source: "codigo_pertenece"}
+    nombre_pertenece:    {source: "nombre_pertenece"}
+    fecha_nacimiento:    {source: "fecha_nacimiento",    type: date, format: "%Y-%m-%d"}
+    nacionalidad:        {source: "nacionalidad"}
+    pais_nacimiento:     {source: "pais_nacimiento"}
+    sexo:                {source: "sexo"}
+    identidad_genero:    {source: "identidad_genero"}
+    tipo_ingreso:        {source: "tipo_ingreso"}
+    dpto_partido_nombre: {source: "dpto_partido_nombre"}
+    localidad_nombre:    {source: "localidad_nombre"}
+    pais_nombre:         {source: "pais_nombre"}

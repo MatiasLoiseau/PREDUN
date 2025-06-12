@@ -1,0 +1,35 @@
+2024_2C:
+  file: "data-private/2024_2C/CURSADA_HISTORICA_final.csv"
+  delimiter: ","
+  schema:
+    id:              {source: "ID",             type: int}
+    cod_carrera:     {source: "COD_CARRERA"}
+    nom_carrera:     {source: "NOM_CARRERA"}
+    anio:            {source: "ANIO",           type: int}
+    tipo_cursada:    {source: "TIPO_CURSADA"}
+    cod_materia:     {source: "COD_MATERIA"}
+    nom_materia:     {source: "NOM_MATERIA"}
+    nro_acta:        {source: "NRO_ACTA"}
+    origen:          {source: "ORIGEN"}
+    nota:            {source: "NOTA",           type: float}
+    fecha:           {source: "FECHA",          type: date, format: "%d/%m/%Y"}
+    fecha_vigencia:  {source: "FECHA_VIGENCIA", type: date, format: "%d/%m/%Y"}
+    resultado:       {source: "RESULTADO"}
+
+2025_1C:
+  file: "data-private/2025_1C/historico_cursada.csv"
+  delimiter: ","
+  schema:
+    id:              {source: "ID",             type: int}
+    cod_carrera:     {source: "COD_CARRERA"}
+    nom_carrera:     {source: "NOM_CARRERA"}
+    anio:            {source: "ANIO",           type: int}
+    tipo_cursada:    {source: "TIPO_CURSADA"}
+    cod_materia:     {source: "COD_MATERIA"}
+    nom_materia:     {source: "NOM_MATERIA"}
+    nro_acta:        {source: "NRO_ACTA"}
+    origen:          {source: "ORIGEN"}
+    nota:            {source: "NOTA",           type: float}
+    fecha:           {source: "FECHA",          type: date, format: "%Y-%m-%d"}
+    fecha_vigencia:  {source: "FECHA_VIGENCIA", type: date, format: "%Y-%m-%d"}
+    resultado:       {source: "RESULTADO"}

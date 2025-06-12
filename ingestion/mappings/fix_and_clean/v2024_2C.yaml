@@ -2,7 +2,7 @@
 version: v2024_2C
 
 input:                         # How the file arrives
-  path: data-private/CURSADA_HISTORICA/2024_2C/CURSADA_HISTORICA.txt
+  path: data-private/2024_2C/CURSADA_HISTORICA.txt
   delimiter: "|"
   encoding: ISO-8859-15
   expected_columns: 13         # Filter corrupt rows by count
@@ -53,6 +53,6 @@ types:
 null_values: ["NULL", "null", ""]
 
 output:                        # Where it's saved
-  path: data-private/CURSADA_HISTORICA/2024_2C/CURSADA_HISTORICA_final.csv
+  path: data-private/2024_2C/CURSADA_HISTORICA_final.csv
   delimiter: ","
   encoding: utf-8

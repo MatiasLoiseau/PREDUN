@@ -1,7 +1,7 @@
 version: v2024_2C
 
 input:
-  path: data-private/STUDENTS/2024_2C/listado_alumnos.csv
+  path: data-private/2024_2C/listado_alumnos.csv
   delimiter: ","
   encoding: utf-8
   header_in_file: true
@@ -61,6 +61,6 @@ types: {}
 null_values: ["NULL", "null", ""]
 
 output:
-  path: data-private/STUDENTS/2024_2C/listado_alumnos_clean.csv
+  path: data-private/2024_2C/listado_alumnos_clean.csv
   delimiter: ","
   encoding: utf-8

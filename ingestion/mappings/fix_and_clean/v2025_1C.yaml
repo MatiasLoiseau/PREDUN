@@ -1,7 +1,7 @@
 version: v2025_2C
 
 input:
-  path: data-private/CURSADA_HISTORICA/2025_1C/historico_cursada.txt
+  path: data-private/2025_1C/historico_cursada.txt
   delimiter: "|"
   encoding: utf-8         
   expected_columns: 18
@@ -78,6 +78,6 @@ types:
 null_values: ["NULL", "null", ""]
 
 output:
-  path: data-private/CURSADA_HISTORICA/2025_1C/historico_cursada.csv
+  path: data-private/2025_1C/historico_cursada.csv
   delimiter: ","
   encoding: utf-8
