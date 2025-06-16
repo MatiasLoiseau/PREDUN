@@ -1,7 +1,7 @@
 version: porcentaje_2024_2C_v2
 
 input:
-  path: data-private/2024_2C/porcentaje_avance_100_por_100.csv
+  path: data-private/2024_2C/raw/porcentaje_avance_100_por_100.csv
   delimiter: ","
   encoding: utf-8
   header_in_file: true

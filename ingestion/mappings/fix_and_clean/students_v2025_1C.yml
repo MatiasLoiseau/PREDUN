@@ -1,7 +1,7 @@
 version: v2025_1C
 
 input:
-  path: data-private/2025_1C/alumnos20250514.csv
+  path: data-private/2025_1C/raw/alumnos20250514.csv
   delimiter: ","
   encoding: ISO-8859-1
   header_in_file: true

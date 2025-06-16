@@ -1,7 +1,7 @@
 version: v2024_2C
 
 input:
-  path: data-private/2024_2C/listado_alumnos.csv
+  path: data-private/2024_2C/raw/listado_alumnos.csv
   delimiter: ","
   encoding: utf-8
   header_in_file: true
