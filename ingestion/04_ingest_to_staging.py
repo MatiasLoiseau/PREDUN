@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ingresa TODOS los CSV de un cuatrimestre en las tablas staging.*_raw
+Add every data from csv to staging tables
 Usage
 -----
     python ingest_to_staging.py --period 2024_2C --root data-private \
@@ -10,9 +10,8 @@ Usage
 import argparse, csv, json, pathlib, psycopg2, psycopg2.extras, re, sys
 from typing import Dict
 
-# -------- utilidades -------------------------------------------------------
 FILE_MAP: Dict[str, str] = {
-    # patron_en_el_nombre → tabla_staging
+    # name → staging_name
     r"cursada":        "staging.cursada_historica_raw",
     r"alumno":         "staging.alumnos_raw",
     r"porcentaje":     "staging.porcentaje_avance_raw",
@@ -25,22 +24,22 @@ def target_table(filename: str) -> str | None:
     return None
 
 def ensure_partition(cur, table: str, period: str) -> None:
-    part = f"{table.split('.')[-1]}_{period}"
+    schema, base = table.split(".")
+    part = f"{schema}.{base}_{period}"
     cur.execute(f"""
         CREATE TABLE IF NOT EXISTS {part}
         PARTITION OF {table}
         FOR VALUES IN (%s)""", (period,))
 
-# -------- proceso ----------------------------------------------------------
 def ingest(period: str, root: pathlib.Path, conn):
     period_path = root / period
     csv_files   = period_path.glob("*.csv")
 
-    with conn, conn.cursor() as cur:
+    with conn.cursor() as cur:
         for csv_path in csv_files:
             tbl = target_table(csv_path.name)
             if not tbl:
-                print(f" Archivo ignorado: {csv_path.name}", file=sys.stderr)
+                print(f" Ignored file: {csv_path.name}", file=sys.stderr)
                 continue
 
             ensure_partition(cur, tbl, period)
@@ -57,7 +56,8 @@ def ingest(period: str, root: pathlib.Path, conn):
             )
             print(f" {csv_path.name} → {tbl} ({len(rows)} filas)")
 
-# -------- CLI --------------------------------------------------------------
+    conn.commit()
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--period", required=True, help="2024_2C, 2025_1C, …")
