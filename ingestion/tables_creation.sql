@@ -153,3 +153,4 @@ SELECT
     (payload->>'materias_aprobadas')::numeric  AS materias_aprobadas
 FROM staging.porcentaje_avance_raw;
 
+grant create, usage on schema public to siu;
