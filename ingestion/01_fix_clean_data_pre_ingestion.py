@@ -82,6 +82,11 @@ def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
             else:
                 df[col] = df[col].astype(dtype)
 
+    # Date format to YYYY-MM-DD
+    for date_col in ["FECHA", "FECHA_VIGENCIA"]:
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
+
     return df
 
 def write_out(df: pd.DataFrame, cfg: dict) -> None:
