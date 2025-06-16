@@ -8,12 +8,12 @@ Uso:
     python scripts/refresh_canonical.py --project-dir /ruta/a/my_dbt_project
 """
 
-import argparse, sys
+import argparse
+import sys
 from dbt.cli.main import dbtRunner, dbtRunnerResult
 
 def run_refresh(project_dir: str) -> dbtRunnerResult:
     runner = dbtRunner()
-    # Ejecutamos la macro como run-operation
     return runner.invoke([
         "run-operation", "refresh_canonical",
         "--project-dir", project_dir
@@ -27,7 +27,9 @@ if __name__ == "__main__":
 
     result = run_refresh(args.project_dir)
 
-    # Imprime el log y código de salida
-    for line in result.stdout.splitlines():
-        print(line)
-    sys.exit(result.return_code)
+    # Imprime información de la ejecución
+    print(f"Éxito: {result.success}")
+    for r in result.result:
+        print(r)  # o bien acceder a r.node, r.status si querés info más detallada
+
+    sys.exit(0 if result.success else 1)
