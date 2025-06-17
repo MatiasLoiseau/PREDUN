@@ -135,6 +135,10 @@ def transform(df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
         df[missing] = np.nan
     df = df[target_cols]  # re-order
 
+    # 7. Remove rows where 'legajo' is null
+    if "legajo" in df.columns:
+        df = df[df["legajo"].notna()]
+
     return df
 
 def write_out(df: pd.DataFrame, cfg: Dict[str, Any]) -> None:

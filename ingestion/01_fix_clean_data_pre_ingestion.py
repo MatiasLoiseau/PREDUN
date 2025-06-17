@@ -87,6 +87,10 @@ def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
         if date_col in df.columns:
             df[date_col] = pd.to_datetime(df[date_col], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
 
+    # Remove rows where ID is null
+    if "ID" in df.columns:
+        df = df[df["ID"].notna()]
+
     return df
 
 def write_out(df: pd.DataFrame, cfg: dict) -> None:

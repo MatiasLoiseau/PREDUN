@@ -124,6 +124,10 @@ def transform(df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
         df[missing] = np.nan
     df = df[target_cols]  # reorder
 
+    # Step 7: Drop rows where 'registro_id' is null
+    if "registro_id" in df.columns:
+        df = df[df["registro_id"].notna()]
+
     return df
 
 
