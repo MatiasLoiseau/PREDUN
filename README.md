@@ -146,6 +146,12 @@ GRANT ALL PRIVILEGES ON DATABASE postgres TO "example_user";
 GRANT ALL ON SCHEMA example_schema TO "example_user";
 ```
 
+## Run Docker
+
+```bash
+docker start -a predun-postgres
+```
+
 ## Run MLflow
 
 Remember load the environment variables
@@ -159,6 +165,26 @@ mlflow server \
     --default-artifact-root $MLFLOW_ARTIFACTS_PATH \
     -h 0.0.0.0 \
     -p 8002 
+```
+
+## Run Ingestion
+
+### Part 1: Fix, clean and format
+
+To preprocess and clean the input data using metadata-driven mappings, execute the following scripts:
+
+```bash
+python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yml
+python ingestion/02_fix_clean_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2024_2C.yml
+python ingestion/03_fix_clean_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2024_2C.yml
+```
+
+### Part 2: Ingest to staging
+
+Add every data from csv to staging tables
+
+```bash
+python ingestion/ingest_to_staging.py --period 2024_2C --root data-private --pg "postgresql://user:password@localhost:5432/postgres"
 ```
 
 ## License
