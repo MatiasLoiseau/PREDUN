@@ -174,7 +174,7 @@ mlflow server \
 To preprocess and clean the input data using metadata-driven mappings, execute the following scripts:
 
 ```bash
-python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yml
+python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yaml
 python ingestion/02_fix_clean_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2024_2C.yml
 python ingestion/03_fix_clean_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2024_2C.yml
 ```
@@ -184,7 +184,7 @@ python ingestion/03_fix_clean_percentage_pre_ingestion.py ingestion/mappings/fix
 Add every data from csv to staging tables
 
 ```bash
-python ingestion/ingest_to_staging.py --period 2024_2C --root data-private --pg "postgresql://user:password@localhost:5432/postgres"
+python ingestion/04_ingest_to_staging.py --period 2024_2C --root data-private --pg "postgresql://user:password@localhost:5432/postgres"
 ```
 
 ## License
