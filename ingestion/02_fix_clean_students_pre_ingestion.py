@@ -49,6 +49,13 @@ def load_config(cfg_path: str) -> Dict[str, Any]:
     with open(cfg_path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh)
 
+def normalize_dates(df: pd.DataFrame, columns: list) -> pd.DataFrame:
+    for col in columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
+            df[col] = df[col].fillna(pd.to_datetime(df[col], format="%Y-%m-%d", errors="coerce"))
+            df[col] = df[col].dt.strftime("%Y-%m-%d")
+    return df
 
 def read_raw(cfg: Dict[str, Any]) -> pd.DataFrame:
     """Read the raw file according to the metadata in `cfg`."""
@@ -125,7 +132,7 @@ def transform(df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
         if dtype == "float":
             df[col] = pd.to_numeric(df[col], errors="coerce")
         elif dtype == "int":
-            df[col] = pd.to_numeric(df[col], errors="coerce").dropna().astype(int)
+            df[col] = pd.to_numeric(df[col], errors="coerce")
         else:
             df[col] = df[col].astype(dtype)
 
@@ -138,6 +145,10 @@ def transform(df: pd.DataFrame, cfg: Dict[str, Any]) -> pd.DataFrame:
     # 7. Remove rows where 'legajo' is null
     if "legajo" in df.columns:
         df = df[df["legajo"].notna()]
+
+    # 8. Normalize date columns
+    DATE_COLUMNS = ["FECHA", "FECHA_VIGENCIA", "fecha_inscripcion", "fecha_nacimiento"]
+    df = normalize_dates(df, DATE_COLUMNS)
 
     return df
 

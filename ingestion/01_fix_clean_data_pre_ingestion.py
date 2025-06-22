@@ -22,6 +22,13 @@ def load_config(cfg_path: str) -> dict:
     with open(cfg_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
+def normalize_dates(df: pd.DataFrame, columns: list) -> pd.DataFrame:
+    for col in columns:
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
+            df[col] = df[col].fillna(pd.to_datetime(df[col], format="%Y-%m-%d", errors="coerce"))
+            df[col] = df[col].dt.strftime("%Y-%m-%d")
+    return df
 
 def read_raw(cfg: dict) -> pd.DataFrame:
     inp = cfg["input"]
@@ -83,10 +90,8 @@ def transform(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
                 df[col] = df[col].astype(dtype)
 
     # Date format to YYYY-MM-DD
-    for date_col in ["FECHA", "FECHA_VIGENCIA"]:
-        if date_col in df.columns:
-            df[date_col] = pd.to_datetime(df[date_col], format="%d/%m/%Y", errors="coerce").dt.strftime("%Y-%m-%d")
-
+    DATE_COLUMNS = ["FECHA", "FECHA_VIGENCIA", "fecha_inscripcion", "fecha_nacimiento"]
+    df = normalize_dates(df, DATE_COLUMNS)
     # Remove rows where ID is null
     if "ID" in df.columns:
         df = df[df["ID"].notna()]
