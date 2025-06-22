@@ -25,9 +25,11 @@ def load_config(cfg_path: str) -> dict:
 def normalize_dates(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     for col in columns:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
-            df[col] = df[col].fillna(pd.to_datetime(df[col], format="%Y-%m-%d", errors="coerce"))
-            df[col] = df[col].dt.strftime("%Y-%m-%d")
+            original = df[col].copy()
+            parsed = pd.to_datetime(original, format="%d/%m/%Y", errors="coerce")
+            mask = parsed.isna()
+            parsed[mask] = pd.to_datetime(original[mask], format="%Y-%m-%d", errors="coerce")
+            df[col] = parsed.dt.strftime("%Y-%m-%d")
     return df
 
 def read_raw(cfg: dict) -> pd.DataFrame:
