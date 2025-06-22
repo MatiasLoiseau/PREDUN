@@ -1,5 +1,9 @@
 {% macro refresh_canonical() %}
-    {{ log("Insertando cursada_historica", info=True) }}
+
+    {{ log("Starting canonical table refresh process", info=True) }}
+
+    -- Cursada Histórica
+    {{ log("Inserting into canonical.cursada_historica", info=True) }}
     {{ run_query("""
         INSERT INTO canonical.cursada_historica (
             academic_period,
@@ -42,8 +46,11 @@
         WHERE id IS NOT NULL AND cod_materia IS NOT NULL AND academic_period IS NOT NULL
         ON CONFLICT ON CONSTRAINT unique_cursada_row DO NOTHING;
     """) }}
+    {% set cursada_rows = run_query("SELECT COUNT(*) FROM canonical.cursada_historica") %}
+    {{ log("canonical.cursada_historica now contains " ~ cursada_rows.columns[0].values()[0] ~ " rows.", info=True) }}
 
-    {{ log("Insertando alumnos", info=True) }}
+    -- Alumnos
+    {{ log("Inserting into canonical.alumnos", info=True) }}
     {{ run_query("""
         INSERT INTO canonical.alumnos (
             academic_period,
@@ -105,8 +112,11 @@
         WHERE legajo IS NOT NULL AND academic_period IS NOT NULL
         ON CONFLICT ON CONSTRAINT unique_alumnos_row DO NOTHING;
     """) }}
+    {% set alumnos_rows = run_query("SELECT COUNT(*) FROM canonical.alumnos") %}
+    {{ log("canonical.alumnos now contains " ~ alumnos_rows.columns[0].values()[0] ~ " rows.", info=True) }}
 
-    {{ log("Insertando porcentaje_avance", info=True) }}
+    -- Porcentaje de Avance
+    {{ log("Inserting into canonical.porcentaje_avance", info=True) }}
     {{ run_query("""
         INSERT INTO canonical.porcentaje_avance (
             academic_period,
@@ -152,7 +162,9 @@
         WHERE registro_id IS NOT NULL AND cod_titulo IS NOT NULL AND academic_period IS NOT NULL
         ON CONFLICT ON CONSTRAINT unique_avance_row DO NOTHING;
     """) }}
+    {% set avance_rows = run_query("SELECT COUNT(*) FROM canonical.porcentaje_avance") %}
+    {{ log("canonical.porcentaje_avance now contains " ~ avance_rows.columns[0].values()[0] ~ " rows.", info=True) }}
 
-    {% set inserted_rows = run_query("SELECT COUNT(*) FROM canonical.cursada_historica") %}
-    {{ log("Filas en canonical.cursada_historica después de insertar: " ~ inserted_rows.columns[0].values()[0], info=True) }}
+    {{ log("Finished canonical table refresh process.", info=True) }}
+
 {% endmacro %}
