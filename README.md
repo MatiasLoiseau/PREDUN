@@ -187,6 +187,15 @@ Add every data from csv to staging tables
 python ingestion/04_ingest_to_staging.py --period 2024_2C --root data-private --pg "postgresql://user:password@localhost:5432/postgres"
 ```
 
+## Run DBT
+
+Run DBT (At the moment, only run [refresh_canonical()](predun_dbt/macros/refresh_canonical.sql))
+
+```bash
+python predun_dbt/scripts/refresh_canonical.py --project-dir predun_dbt/
+```
+
+
 ## License
 
 This project is licensed under the Apache 2.0 License. See the [LICENSE](LICENSE) file for more details.
