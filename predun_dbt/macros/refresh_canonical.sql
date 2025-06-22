@@ -38,7 +38,7 @@
             fecha_vigencia,
             resultado,
             md5(concat_ws('|',
-                academic_period, id, cod_carrera, nom_carrera, anio,
+                id, cod_carrera, nom_carrera, anio,
                 tipo_cursada, cod_materia, nom_materia, nro_acta,
                 origen, nota, fecha, fecha_vigencia, resultado
             )) AS row_hash
@@ -101,7 +101,7 @@
             localidad_nombre,
             pais_nombre,
             md5(concat_ws('|',
-                academic_period, legajo, calidad, nombre, plan_nombre,
+                legajo, calidad, nombre, plan_nombre,
                 plan_codigo, anio_academico, fecha_inscripcion, regular,
                 codigo_carrera, nombre_carrera, codigo_pertenece, nombre_pertenece,
                 fecha_nacimiento, nacionalidad, pais_nacimiento, sexo,
@@ -153,7 +153,7 @@
             porcentaje_avance,
             materias_aprobadas,
             md5(concat_ws('|',
-                academic_period, registro_id, persona_id, es_regular,
+                registro_id, persona_id, es_regular,
                 orden_titulo, cod_carrera, nombre_carrera, cod_titulo,
                 titulo_obtenido, estado_titulo, reserva_1, reserva_2,
                 vigente, porcentaje_avance, materias_aprobadas
