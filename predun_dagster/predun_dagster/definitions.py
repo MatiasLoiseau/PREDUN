@@ -1,9 +1,9 @@
-from dagster import Definitions, load_assets_from_modules
-
-from predun_dagster import assets  # noqa: TID252
-
-all_assets = load_assets_from_modules([assets])
+from dagster import Definitions
+from .etl_job import etl_period
+from .partitions import discover_new_periods   # academic_periods
 
 defs = Definitions(
-    assets=all_assets,
+    jobs=[etl_period],
+    sensors=[discover_new_periods],
+    # schedules=[weekly_etl],
 )
