@@ -2,7 +2,7 @@
 """
 Data Ingestion Flexible with Metadata-driven Mapping
 Use:
-    python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/v2024_2C.yml
+    python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/v2024_2C.yml
 """
 import sys
 import logging
@@ -113,7 +113,7 @@ def write_out(df: pd.DataFrame, cfg: dict) -> None:
 
 def main():
     if len(sys.argv) < 2:
-        print("Use: python 01_fix_clean_data_pre_ingestion.py <config.yml>")
+        print("Use: python 01_format_history_data_pre_ingestion.py <config.yml>")
         sys.exit(1)
 
     cfg_path = sys.argv[1]

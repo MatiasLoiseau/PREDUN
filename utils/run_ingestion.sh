@@ -15,14 +15,14 @@ PG_CONN="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/postgres"
 
 run_step_1() {
   echo "Step 1: Data preprocessing"
-  python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yaml
-  python ingestion/01_fix_clean_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2025_1C.yaml
+  python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yaml
+  python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2025_1C.yaml
 
-  python ingestion/02_fix_clean_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2024_2C.yml
-  python ingestion/02_fix_clean_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2025_1C.yml
+  python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2024_2C.yml
+  python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2025_1C.yml
 
-  python ingestion/03_fix_clean_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2024_2C.yml
-  python ingestion/03_fix_clean_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2025_1C.yml
+  python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2024_2C.yml
+  python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2025_1C.yml
 }
 
 run_step_2() {
