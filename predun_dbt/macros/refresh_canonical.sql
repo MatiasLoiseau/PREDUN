@@ -13,7 +13,7 @@
             anio,
             tipo_cursada,
             cod_materia,
-            nom_materia,
+            --nom_materia,
             nro_acta,
             origen,
             nota,
@@ -30,7 +30,7 @@
             anio,
             tipo_cursada,
             cod_materia,
-            nom_materia,
+            --nom_materia,
             nro_acta,
             origen,
             nota,
@@ -39,7 +39,7 @@
             resultado,
             md5(concat_ws('|',
                 id, cod_carrera, nom_carrera, anio,
-                tipo_cursada, cod_materia, nom_materia, nro_acta,
+                tipo_cursada, cod_materia, nro_acta, --nom_materia,
                 origen, nota, fecha, fecha_vigencia, resultado
             )) AS row_hash
         FROM staging.cursada_historica_flat
