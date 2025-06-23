@@ -52,6 +52,8 @@ columns:
 
 value_mappings:
   TIPO_CURSADA:
+    '2º Cuatrimestre': '2C'
+    'POSGRADO - 2do Cuatrimestre': '2C'
     '1° cuatrimestre': '1C'
     '2° cuatrimestre': '2C'
     '1º Cuatrimestre': '1C'
