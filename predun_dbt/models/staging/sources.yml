@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: staging
+    schema: staging # Postgres
+    tables:
+      - name: cursada_historica_raw
+      - name: alumnos_raw
+      - name: porcentaje_avance_raw

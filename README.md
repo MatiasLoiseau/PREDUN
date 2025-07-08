@@ -154,10 +154,10 @@ python ingestion/04_ingest_to_staging.py --period 2024_2C --root data-private --
 
 ## Run DBT
 
-Run DBT (At the moment, only run [refresh_canonical()](predun_dbt/macros/refresh_canonical.sql))
-
 ```bash
-python predun_dbt/scripts/refresh_canonical.py --project-dir predun_dbt/
+cd predun_dbt
+# optional: ./recompile_dbt
+dbt run --select "canonical.*" 
 ```
 
 ## Things to do
