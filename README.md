@@ -160,6 +160,9 @@ Run DBT (At the moment, only run [refresh_canonical()](predun_dbt/macros/refresh
 python predun_dbt/scripts/refresh_canonical.py --project-dir predun_dbt/
 ```
 
+## Things to do
+
+- Automate the installation (try uv instead of pip or conda?)
 
 ## License
 
