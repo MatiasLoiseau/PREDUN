@@ -163,6 +163,7 @@ dbt run --select "canonical.*"
 ## Things to do
 
 - Automate the installation (try uv instead of pip or conda?)
+- Create canonical_historicaln scheme or tables
 
 ## License
 
