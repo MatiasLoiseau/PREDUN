@@ -28,7 +28,9 @@ columns:
     - porcentaje_avance
     - materias_aprobadas
 
-  rename: {}            # nada que renombrar
+  rename:
+    registro_id: legajo
+
   drop:                 # columnas que debemos quitar
     - tipo_documento
     - nro_documento
@@ -36,7 +38,7 @@ columns:
     - nombres
 
   target:               # esquema final (14 columnas)
-    - registro_id
+    - legajo
     - persona_id
     - es_regular
     - orden_titulo

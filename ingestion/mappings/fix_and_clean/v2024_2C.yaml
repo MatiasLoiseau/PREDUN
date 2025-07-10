@@ -23,7 +23,8 @@ columns:                       # Column definitions
     - FECHA
     - FECHA_VIGENCIA
     - RESULTADO
-  rename: {}                   # Example: {"carrera": "COD_CARRERA"}
+  rename:
+    ID: legajo
   drop: []                     # Example: ["COMENTARIOS", "ULTIMA_ACTUALIZACION"]
 
 value_mappings:                # Normalizations

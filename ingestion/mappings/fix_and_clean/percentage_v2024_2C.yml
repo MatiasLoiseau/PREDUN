@@ -22,12 +22,13 @@ columns:
     - porcentaje_avance
     - materias_aprobadas
 
-  rename: {}     # All columns already match the canonical schema
+  rename:
+    registro_id: legajo
 
   drop: []       # Nothing to drop
 
   target:
-    - registro_id
+    - legajo
     - persona_id
     - cod_carrera
     - nombre_carrera

@@ -19,12 +19,12 @@ src as (
 
 select distinct
     {{ dbt_utils.generate_surrogate_key([
-        'registro_id','persona_id','es_regular','orden_titulo','cod_carrera',
+        'legajo','persona_id','es_regular','orden_titulo','cod_carrera',
         'nombre_carrera','cod_titulo','titulo_obtenido','estado_titulo',
         'reserva_1','reserva_2','vigente','porcentaje_avance','materias_aprobadas'
     ]) }} as row_hash,
     academic_period,
-    registro_id,
+    legajo,
     persona_id,
     es_regular,
     orden_titulo,

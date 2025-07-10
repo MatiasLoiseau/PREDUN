@@ -29,7 +29,6 @@ columns:
     - email
 
   rename:
-    legajo: ID
     codigo: COD_CARRERA
     nombre: NOM_CARRERA
     anio_academico: ANIO

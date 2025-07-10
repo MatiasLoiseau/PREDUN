@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS staging.porcentaje_avance_raw (
 CREATE OR REPLACE VIEW staging.cursada_historica_flat AS
 SELECT
     academic_period,
-    payload->>'ID'                   AS id,
+    payload->>'legajo'               AS legajo,
     payload->>'COD_CARRERA'          AS cod_carrera,
     payload->>'NOM_CARRERA'          AS nom_carrera,
     payload->>'ANIO'                 AS anio,
@@ -54,7 +54,7 @@ SELECT
     payload->>'fecha_inscripcion'    AS fecha_inscripcion,
     payload->>'regular'              AS regular,
     payload->>'codigo_carrera'       AS codigo_carrera,
-    payload->>'nombre_carrera'      AS nombre_carrera,
+    payload->>'nombre_carrera'       AS nombre_carrera,
     payload->>'codigo_pertenece'     AS codigo_pertenece,
     payload->>'nombre_pertenece'     AS nombre_pertenece,
     payload->>'fecha_nacimiento'     AS fecha_nacimiento,
@@ -71,7 +71,7 @@ FROM staging.alumnos_raw;
 CREATE OR REPLACE VIEW staging.porcentaje_avance_flat AS
 SELECT
     academic_period,
-    payload->>'registro_id'          AS registro_id,
+    payload->>'legajo'               AS legajo,
     payload->>'persona_id'           AS persona_id,
     payload->>'es_regular'           AS es_regular,
     payload->>'orden_titulo'         AS orden_titulo,
@@ -91,7 +91,7 @@ select * from staging.porcentaje_avance_raw;
 CREATE TABLE IF NOT EXISTS canonical.cursada_historica (
     row_hash        TEXT PRIMARY KEY,
     academic_period TEXT NOT NULL,
-    id              TEXT,
+    legajo          TEXT,
     cod_carrera     TEXT,
     nom_carrera     TEXT,
     anio            TEXT,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS canonical.alumnos (
 CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance (
     row_hash          TEXT PRIMARY KEY,
     academic_period   TEXT NOT NULL,
-    registro_id       TEXT,
+    legajo            TEXT,
     persona_id        TEXT,
     es_regular        TEXT,
     orden_titulo      TEXT,
@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance (
 CREATE TABLE IF NOT EXISTS canonical.cursada_historica_history (
     row_hash        TEXT NOT NULL,
     academic_period TEXT NOT NULL,
-    id              TEXT,
+    legajo          TEXT,
     cod_carrera     TEXT,
     nom_carrera     TEXT,
     anio            TEXT,
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS canonical.alumnos_history (
 CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance_history (
     row_hash            TEXT NOT NULL,
     academic_period     TEXT NOT NULL,
-    registro_id         TEXT,
+    legajo              TEXT,
     persona_id          TEXT,
     es_regular          TEXT,
     orden_titulo        TEXT,
