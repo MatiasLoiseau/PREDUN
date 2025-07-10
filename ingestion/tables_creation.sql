@@ -88,11 +88,10 @@ SELECT
 FROM staging.porcentaje_avance_raw;
 select * from staging.porcentaje_avance_raw;
 
-
--- cursada_historica como TEXT
 CREATE TABLE IF NOT EXISTS canonical.cursada_historica (
+    row_hash        TEXT PRIMARY KEY,
     academic_period TEXT NOT NULL,
-    id              TEXT NOT NULL,
+    id              TEXT,
     cod_carrera     TEXT,
     nom_carrera     TEXT,
     anio            TEXT,
@@ -105,12 +104,11 @@ CREATE TABLE IF NOT EXISTS canonical.cursada_historica (
     fecha           TEXT,
     fecha_vigencia  TEXT,
     resultado       TEXT,
-    inserted_at     TEXT DEFAULT now()::text,
-    PRIMARY KEY (id, cod_materia, academic_period)
+    inserted_at     TIMESTAMPTZ DEFAULT now()
 );
 
--- alumnos como TEXT
 CREATE TABLE IF NOT EXISTS canonical.alumnos (
+    row_hash              TEXT PRIMARY KEY,
     academic_period       TEXT NOT NULL,
     legajo                TEXT,
     calidad               TEXT,
@@ -133,12 +131,79 @@ CREATE TABLE IF NOT EXISTS canonical.alumnos (
     dpto_partido_nombre   TEXT,
     localidad_nombre      TEXT,
     pais_nombre           TEXT,
-    inserted_at           TEXT DEFAULT now()::text,
-    PRIMARY KEY (legajo, academic_period, calidad)
+    inserted_at           TIMESTAMPTZ DEFAULT now()
 );
 
--- porcentaje_avance como TEXT
 CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance (
+    row_hash          TEXT PRIMARY KEY,
+    academic_period   TEXT NOT NULL,
+    registro_id       TEXT,
+    persona_id        TEXT,
+    es_regular        TEXT,
+    orden_titulo      TEXT,
+    cod_carrera       TEXT,
+    nombre_carrera    TEXT,
+    cod_titulo        TEXT,
+    titulo_obtenido   TEXT,
+    estado_titulo     TEXT,
+    reserva_1         TEXT,
+    reserva_2         TEXT,
+    vigente           TEXT,
+    porcentaje_avance TEXT,
+    materias_aprobadas TEXT,
+    inserted_at       TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS canonical.cursada_historica_history (
+    row_hash        TEXT NOT NULL,
+    academic_period TEXT NOT NULL,
+    id              TEXT,
+    cod_carrera     TEXT,
+    nom_carrera     TEXT,
+    anio            TEXT,
+    tipo_cursada    TEXT,
+    cod_materia     TEXT,
+    nom_materia     TEXT,
+    nro_acta        TEXT,
+    origen          TEXT,
+    nota            TEXT,
+    fecha           TEXT,
+    fecha_vigencia  TEXT,
+    resultado       TEXT,
+    inserted_at     TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (row_hash, academic_period)
+);
+
+CREATE TABLE IF NOT EXISTS canonical.alumnos_history (
+    row_hash              TEXT NOT NULL,
+    academic_period       TEXT NOT NULL,
+    legajo                TEXT,
+    calidad               TEXT,
+    nombre                TEXT,
+    plan_nombre           TEXT,
+    plan_codigo           TEXT,
+    anio_academico        TEXT,
+    fecha_inscripcion     TEXT,
+    regular               TEXT,
+    codigo_carrera        TEXT,
+    nombre_carrera        TEXT,
+    codigo_pertenece      TEXT,
+    nombre_pertenece      TEXT,
+    fecha_nacimiento      TEXT,
+    nacionalidad          TEXT,
+    pais_nacimiento       TEXT,
+    sexo                  TEXT,
+    identidad_genero      TEXT,
+    tipo_ingreso          TEXT,
+    dpto_partido_nombre   TEXT,
+    localidad_nombre      TEXT,
+    pais_nombre           TEXT,
+    inserted_at           TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (row_hash, academic_period)
+);
+
+CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance_history (
+    row_hash            TEXT NOT NULL,
     academic_period     TEXT NOT NULL,
     registro_id         TEXT,
     persona_id          TEXT,
@@ -154,63 +219,6 @@ CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance (
     vigente             TEXT,
     porcentaje_avance   TEXT,
     materias_aprobadas  TEXT,
-    inserted_at         TEXT DEFAULT now()::text,
-    PRIMARY KEY (registro_id, cod_titulo, academic_period)
+    inserted_at         TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (row_hash, academic_period)
 );
-
-ALTER TABLE canonical.cursada_historica
-ADD COLUMN row_hash TEXT;
-
-UPDATE canonical.cursada_historica
-SET row_hash = md5(
-    concat_ws('|',
-        id, cod_carrera, nom_carrera, anio,
-        tipo_cursada, cod_materia, nom_materia, nro_acta,
-        origen, nota, fecha, fecha_vigencia, resultado
-    )
-)
-WHERE row_hash IS NULL;
-
-ALTER TABLE canonical.cursada_historica
-ADD CONSTRAINT unique_cursada_row UNIQUE (row_hash);
-
-ALTER TABLE canonical.alumnos
-ADD COLUMN row_hash TEXT;
-
-UPDATE canonical.alumnos
-SET row_hash = md5(
-    concat_ws('|',
-        legajo, calidad, nombre, plan_nombre, plan_codigo,
-        anio_academico, fecha_inscripcion, regular, codigo_carrera, nombre_carrera,
-        codigo_pertenece, nombre_pertenece, fecha_nacimiento, nacionalidad,
-        pais_nacimiento, sexo, identidad_genero, tipo_ingreso,
-        dpto_partido_nombre, localidad_nombre, pais_nombre
-    )
-)
-WHERE row_hash IS NULL;
-
-ALTER TABLE canonical.alumnos
-ADD CONSTRAINT unique_alumnos_row UNIQUE (row_hash);
-
-ALTER TABLE canonical.porcentaje_avance
-ADD COLUMN row_hash TEXT;
-
-UPDATE canonical.porcentaje_avance
-SET row_hash = md5(
-    concat_ws('|',
-        registro_id, persona_id, es_regular,
-        orden_titulo, cod_carrera, nombre_carrera, cod_titulo,
-        titulo_obtenido, estado_titulo, reserva_1, reserva_2,
-        vigente, porcentaje_avance, materias_aprobadas
-    )
-)
-WHERE row_hash IS NULL;
-
-ALTER TABLE canonical.porcentaje_avance
-ADD CONSTRAINT unique_avance_row UNIQUE (row_hash);
-
-ALTER TABLE canonical.cursada_historica DROP CONSTRAINT cursada_historica_pkey;
-ALTER TABLE canonical.alumnos DROP CONSTRAINT alumnos_pkey;
-ALTER TABLE canonical.porcentaje_avance DROP CONSTRAINT porcentaje_avance_pkey;
-
-grant create, usage on schema public to siu;
