@@ -1,6 +1,7 @@
 {{ config(
     materialized = 'table',
     full_refresh = true,
+    pre_hook = ["{{ archive_canonical_table(this) }}"],
     post_hook = [
         'alter table {{ this }} add primary key (row_hash)'
     ]
