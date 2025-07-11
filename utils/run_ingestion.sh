@@ -1,62 +1,41 @@
 #!/bin/bash
 
-# Usage: ./run_ingestion.sh <pg_user> <pg_password> <step: 1 | 2 | 3 | all>
+# Usage: ./run_ingestion.sh <pg_user> <pg_password> <version: 2024_2C | 2025_1C>
 
-# Check that 3 arguments are provided
 if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <pg_user> <pg_password> <step: 1 | 2 | 3 | all>"
+  echo "Usage: $0 <pg_user> <pg_password> <version: 2024_2C | 2025_1C>"
   exit 1
 fi
 
 PG_USER=$1
 PG_PASS=$2
-STEP=$3
+VERSION=$3
 PG_CONN="postgresql://${PG_USER}:${PG_PASS}@localhost:5432/postgres"
 
-run_step_1() {
-  echo "Step 1: Data preprocessing"
-  python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2024_2C.yaml
-  python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v2025_1C.yaml
+if [[ "$VERSION" != "2024_2C" && "$VERSION" != "2025_1C" ]]; then
+  echo "Invalid version: $VERSION"
+  echo "Allowed versions are: 2024_2C or 2025_1C"
+  exit 1
+fi
 
-  python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2024_2C.yml
-  python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v2025_1C.yml
+echo "Running ingestion for version $VERSION..."
 
-  python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2024_2C.yml
-  python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v2025_1C.yml
-}
+# Preprocessing scripts
+python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v${VERSION}.yaml
+python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v${VERSION}.yml
+python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v${VERSION}.yml
 
-run_step_2() {
-  echo "Step 2: Load data into staging"
-  python ingestion/04_ingest_to_staging.py --period 2024_2C --root data-private --pg "$PG_CONN"
-  python ingestion/04_ingest_to_staging.py --period 2025_1C --root data-private --pg "$PG_CONN"
-}
+# Ingest to staging
+python ingestion/04_ingest_to_staging.py --period $VERSION --root data-private --pg "$PG_CONN"
 
-run_step_3() {
-  echo "Step 3: Refresh canonical tables"
-  python predun_dbt/scripts/refresh_canonical.py --project-dir predun_dbt/
-}
+# DBT: compile, install dependencies and run models
+cd predun_dbt || { echo "Failed to change directory to predun_dbt"; exit 1; }
 
-# Execute steps based on the input argument
-case "$STEP" in
-  1)
-    run_step_1
-    ;;
-  2)
-    run_step_2
-    ;;
-  3)
-    run_step_3
-    ;;
-  all)
-    run_step_1
-    run_step_2
-    run_step_3
-    ;;
-  *)
-    echo "Invalid step: $STEP"
-    echo "Allowed values are: 1, 2, 3, all"
-    exit 1
-    ;;
-esac
+echo "Running ./recompile_dbt.sh..."
+./recompile_dbt.sh
 
-echo "Script completed successfully."
+echo "Running dbt run for canonical.*..."
+dbt run --select "canonical.*"
+cd ..
+
+echo "Ingestion for $VERSION completed successfully."
