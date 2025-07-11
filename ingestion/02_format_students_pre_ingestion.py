@@ -52,8 +52,10 @@ def load_config(cfg_path: str) -> Dict[str, Any]:
 def normalize_dates(df: pd.DataFrame, columns: list) -> pd.DataFrame:
     for col in columns:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], format="%d/%m/%Y", errors="coerce")
-            df[col] = df[col].fillna(pd.to_datetime(df[col], format="%Y-%m-%d", errors="coerce"))
+            original = df[col]
+            parsed1 = pd.to_datetime(original, format="%d/%m/%Y", errors="coerce")
+            parsed2 = pd.to_datetime(original, format="%Y-%m-%d", errors="coerce")
+            df[col] = parsed1.combine_first(parsed2)
             df[col] = df[col].dt.strftime("%Y-%m-%d")
     return df
 
