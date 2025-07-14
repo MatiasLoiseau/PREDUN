@@ -160,10 +160,15 @@ cd predun_dbt
 dbt run --select "canonical.*" 
 ```
 
+## Optional: Run ingestion in one step
+
+```bash
+./utils/run_ingestion.sh user_db password_db version #2024_2C
+```
+
 ## Things to do
 
 - Automate the installation (try uv instead of pip or conda?)
-- Create canonical_historicaln scheme or tables
 
 ## License
 
