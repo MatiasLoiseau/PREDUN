@@ -160,6 +160,12 @@ cd predun_dbt
 dbt run --select "canonical.*" 
 ```
 
+### Run marts
+
+```bash
+dbt run --select marts.student_status
+```
+
 ## Optional: Run ingestion in one step
 
 ```bash
