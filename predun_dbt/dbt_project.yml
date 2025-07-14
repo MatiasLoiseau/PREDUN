@@ -35,6 +35,9 @@ models:
         +schema: staging
       porcentaje_avance_flat:
         +schema: staging
+    marts:
+      +schema: marts
+      +materialized: table
 
     example:
       +materialized: view

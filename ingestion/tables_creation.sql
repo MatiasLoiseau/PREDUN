@@ -222,3 +222,15 @@ CREATE TABLE IF NOT EXISTS canonical.porcentaje_avance_history (
     inserted_at         TIMESTAMPTZ DEFAULT now(),
     PRIMARY KEY (row_hash, academic_period)
 );
+
+CREATE SCHEMA IF NOT EXISTS marts;
+
+alter schema marts owner to siu;
+
+CREATE TABLE IF NOT EXISTS marts.student_status (
+    legajo               TEXT PRIMARY KEY,
+    status               TEXT      NOT NULL,
+    dropout_flag         INTEGER   NOT NULL,
+    fecha_ultima_cursada DATE,
+    inserted_at          TIMESTAMPTZ DEFAULT now()
+);
