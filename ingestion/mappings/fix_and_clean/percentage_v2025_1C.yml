@@ -29,17 +29,17 @@ columns:
     - materias_aprobadas
 
   rename:
-    registro_id: legajo
+    persona_id: legajo
 
-  drop:                 # columnas que debemos quitar
+  drop:
     - tipo_documento
     - nro_documento
     - apellido
     - nombres
 
-  target:               # esquema final (14 columnas)
+  target:
+    - registro_id
     - legajo
-    - persona_id
     - es_regular
     - orden_titulo
     - cod_carrera
