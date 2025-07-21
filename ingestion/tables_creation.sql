@@ -234,3 +234,17 @@ CREATE TABLE IF NOT EXISTS marts.student_status (
     fecha_ultima_cursada DATE,
     inserted_at          TIMESTAMPTZ DEFAULT now()
 );
+
+create table marts.student_panel (
+    legajo                    integer          not null,
+    cod_carrera               varchar(10)      not null,
+    academic_period           varchar(8)       not null,
+    materias_en_periodo       integer          not null,
+    promo_en_periodo          integer          not null,
+    nota_media_en_periodo     numeric(5,2),
+    materias_win3             integer          not null,
+    promo_win3                integer          not null,
+    nota_win3                 numeric(5,2),
+    dias_desde_ult_periodo    integer,
+    dropout_next              integer          not null
+);
