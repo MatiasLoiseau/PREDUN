@@ -45,6 +45,7 @@ DB_NAME=example_db
 DB_USER=example_user
 DB_PASSWORD=example_password
 DB_SCHEMA=example_schema
+PG_URI="postgresql://user:password@localhost:5432/user"
 ```
 
 To load the environment variables, execute the following command:
