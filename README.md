@@ -174,6 +174,26 @@ dbt run --select marts.student_panel
 ./utils/run_ingestion.sh user_db password_db version #2024_2C
 ```
 
+## Install Dagster + MLflow with Conda
+
+```bash
+conda create -n dagster-predun python=3.9 -y
+conda activate dagster-predun
+pip install -r requirements-dagster.txt
+pip install -e .
+```
+
+### Run Dagster Web UI
+
+Launch the Dagster web interface:
+
+```bash
+cd predun_dagster
+dagster dev -m predun_dagster
+```
+
+Access it at: http://localhost:3000
+
 ## Things to do
 
 - Automate the installation (try uv instead of pip or conda?)
