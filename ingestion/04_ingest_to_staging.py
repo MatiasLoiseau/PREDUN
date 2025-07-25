@@ -9,6 +9,7 @@ Usage
 
 import argparse, csv, json, pathlib, psycopg2, psycopg2.extras, re, sys
 from typing import Dict
+from typing import Optional
 
 FILE_MAP: Dict[str, str] = {
     # name → staging_name
@@ -17,7 +18,7 @@ FILE_MAP: Dict[str, str] = {
     r"porcentaje":     "staging.porcentaje_avance_raw",
 }
 
-def target_table(filename: str) -> str | None:
+def target_table(filename: str) -> Optional[str]:
     for pattern, table in FILE_MAP.items():
         if re.search(pattern, filename, re.I):
             return table
