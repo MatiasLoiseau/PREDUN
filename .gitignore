@@ -16,6 +16,9 @@ exploratory_analysis/
 mlruns
 mlflow/mlflow_data
 
+# Dagster tmp files
+predun_dagster/.tmp_dagster_home_*/
+
 # C extensions
 *.so
 
