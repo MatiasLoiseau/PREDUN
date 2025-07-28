@@ -1,7 +1,7 @@
 {{ config(materialized='view') }}
 select
     academic_period,
-    payload->>'ID'                  as id,
+    payload->>'legajo'              as legajo,
     payload->>'COD_CARRERA'         as cod_carrera,
     payload->>'NOM_CARRERA'         as nom_carrera,
     payload->>'ANIO'                as anio,

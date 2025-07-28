@@ -2,7 +2,7 @@
 
 select
     academic_period,
-    payload->>'registro_id'        as registro_id,
+    payload->>'legajo'             as legajo,
     payload->>'persona_id'         as persona_id,
     payload->>'es_regular'         as es_regular,
     payload->>'orden_titulo'       as orden_titulo,
