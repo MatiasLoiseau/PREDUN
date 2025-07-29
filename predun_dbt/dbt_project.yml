@@ -38,6 +38,3 @@ models:
     marts:
       +schema: marts
       +materialized: table
-
-    example:
-      +materialized: view
