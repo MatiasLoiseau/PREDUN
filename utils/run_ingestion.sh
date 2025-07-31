@@ -36,8 +36,8 @@ echo "Running ingestion for version $VERSION..."
 
 # Preprocessing scripts
 python ingestion/01_format_history_data_pre_ingestion.py ingestion/mappings/fix_and_clean/v${VERSION}.yaml
-python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v${VERSION}.yml
-python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v${VERSION}.yml
+python ingestion/02_format_students_pre_ingestion.py ingestion/mappings/fix_and_clean/students_v${VERSION}.yaml
+python ingestion/03_format_percentage_pre_ingestion.py ingestion/mappings/fix_and_clean/percentage_v${VERSION}.yaml
 
 # Ingest to staging
 python ingestion/04_ingest_to_staging.py --period $VERSION --root data-private --pg "$PG_CONN"

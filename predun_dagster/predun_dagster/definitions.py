@@ -5,9 +5,14 @@ from .assets import (
     dbt_project_assets,
     train_student_dropout_model,
     score_student_dropout_risk,
+    format_history_data,
+    format_students,
+    format_percentage,
+    ingest_to_staging,
 )
 from .resources import PostgresResource, MLflowResource
 from .jobs import full_pipeline_job
+from .jobs_ingestion import ingestion_job
 from .sensors import new_period_sensor
 from .constants import PG_URI_ENV, DBT_PROJECT_DIR, DBT_PROFILES_DIR
 from dagster_dbt import DbtCliResource
@@ -37,12 +42,16 @@ defs = Definitions(
         dbt_project_assets,
         train_student_dropout_model,
         score_student_dropout_risk,
+        format_history_data,
+        format_students,
+        format_percentage,
+        ingest_to_staging,
     ],
     resources={
         "dbt": dbt_resource,
         "postgres": pg_resource,
         "mlflow": mlflow_resource,
     },
-    jobs=[full_pipeline_job],
+    jobs=[full_pipeline_job, ingestion_job],
     sensors=[new_period_sensor],
 )
