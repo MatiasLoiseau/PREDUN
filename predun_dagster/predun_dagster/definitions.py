@@ -1,5 +1,7 @@
 import os
 from dagster import Definitions
+import socket
+import datetime
 
 from .assets import (
     dbt_project_assets,
@@ -11,6 +13,7 @@ from .assets import (
     ingest_to_staging,
 )
 from .resources import PostgresResource, MLflowResource
+from .monitoring import MLFlowMonitoringResource
 from .jobs import refresh_canonical
 from .jobs_ingestion import ingestion_job
 from .sensors import new_period_sensor
@@ -29,6 +32,20 @@ pg_resource = PostgresResource(
 )
 
 mlflow_resource = MLflowResource()
+
+# Create a unique experiment name for each environment to avoid conflicts
+hostname = socket.gethostname()
+today = datetime.datetime.now().strftime("%Y%m%d")
+experiment_name = f"data_pipeline_monitoring_{hostname}_{today}"
+
+# MLFlow monitoring resource
+mlflow_monitoring = MLFlowMonitoringResource(
+    mlflow_tracking_uri=os.getenv(
+        "MLFLOW_TRACKING_URI",
+        f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST')}/{os.getenv('MLFLOW_POSTGRES_DB')}"
+    ),
+    experiment_name=experiment_name
+)
 
 dbt_resource = DbtCliResource(
     project_dir=str(DBT_PROJECT_DIR),
@@ -50,6 +67,7 @@ defs = Definitions(
         "dbt": dbt_resource,
         "postgres": pg_resource,
         "mlflow": mlflow_resource,
+        "mlflow_monitoring": mlflow_monitoring,
     },
     jobs=[refresh_canonical, ingestion_job],
     sensors=[new_period_sensor],

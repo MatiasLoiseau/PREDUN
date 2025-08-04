@@ -3,6 +3,7 @@ import sqlalchemy as sa
 import mlflow
 from dagster import ConfigurableResource
 from typing import Optional
+from .monitoring import MLFlowMonitoringResource
 
 class PostgresResource(ConfigurableResource):
     """SQLAlchemy"""
