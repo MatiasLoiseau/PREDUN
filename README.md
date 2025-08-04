@@ -189,14 +189,42 @@ dbt run --select marts.student_panel
 
 ## Dagster Usage
 
-Launch the Dagster web interface:
+1. **Start the Dagster web interface:**
 
 ```bash
 cd predun_dagster
 dagster dev -m predun_dagster
 ```
 
-Access Dagster UI at: [http://localhost:3000](http://localhost:3000)
+Access the Dagster UI at: [http://localhost:3000](http://localhost:3000)
+
+2. **Run the Ingestion Job**
+
+In the Dagster UI, launch the ingestion job with the following configuration (replace `VERSION`, `user`, and `password` as needed):
+
+```yaml
+ops:
+  format_history_data:
+    config:
+      version: "VERSION"
+  format_students:
+    config:
+      version: "VERSION"
+  format_percentage:
+    config:
+      version: "VERSION"
+  ingest_to_staging:
+    config:
+      version: "VERSION"
+      pg_user: "user"
+      pg_password: "password"
+```
+
+Set `version` to the desired period (e.g., `2024_2C` or `2025_1C`) and provide your PostgreSQL username and password.
+
+3. **Run the Refresh Canonical Job**
+
+After ingestion, execute the `refresh_canonical` job from the Dagster UI to update canonical tables.
 
 ## License
 
