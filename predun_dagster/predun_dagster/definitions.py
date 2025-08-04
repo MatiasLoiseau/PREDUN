@@ -19,11 +19,10 @@ from dagster_dbt import DbtCliResource
 
 # Resources ------------------------------------------------------------------
 pg_resource = PostgresResource(
-
     conn_uri=os.getenv(
         PG_URI_ENV,
-        f"postgresql://{os.getenv('DB_USER','siu')}:"
-        f"{os.getenv('DB_PASSWORD','siu')}@"
+        f"postgresql://{os.getenv('DB_USER')}:"
+        f"{os.getenv('DB_PASSWORD')}@"
         f"{os.getenv('DB_HOST','localhost')}:5432/"
         f"{os.getenv('DB_NAME','postgres')}",
     )
