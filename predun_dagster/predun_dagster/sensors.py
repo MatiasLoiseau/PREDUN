@@ -1,6 +1,6 @@
 from dagster import RunRequest, SkipReason, sensor
 from dagster_dbt import get_asset_key_for_model
-from .jobs import full_pipeline_job
+from .jobs import refresh_canonical
 from .assets import dbt_project_assets
 
 PANEL_KEY = get_asset_key_for_model(
@@ -8,7 +8,7 @@ PANEL_KEY = get_asset_key_for_model(
     model_name="student_panel",
 )
 
-@sensor(job=full_pipeline_job, minimum_interval_seconds=3600)
+@sensor(job=refresh_canonical, minimum_interval_seconds=3600)
 def new_period_sensor(context):
     records = context.instance.get_event_log_records(
         asset_key=PANEL_KEY,

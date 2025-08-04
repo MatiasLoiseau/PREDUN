@@ -1,6 +1,12 @@
-from dagster import define_asset_job
+from dagster import define_asset_job, AssetSelection
 
-full_pipeline_job = define_asset_job(
-    name="full_student_dropout_pipeline",
-    selection="*",
+refresh_canonical = define_asset_job(
+    name="refresh_canonical",
+    selection=AssetSelection.keys(
+        ["canonical", "alumnos"],
+        ["canonical", "cursada_historica"],
+        ["canonical", "porcentaje_avance"],
+        ["marts", "student_status"],
+        ["marts", "student_panel"],
+    ),
 )

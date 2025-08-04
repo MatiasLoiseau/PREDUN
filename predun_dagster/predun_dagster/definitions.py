@@ -11,7 +11,7 @@ from .assets import (
     ingest_to_staging,
 )
 from .resources import PostgresResource, MLflowResource
-from .jobs import full_pipeline_job
+from .jobs import refresh_canonical
 from .jobs_ingestion import ingestion_job
 from .sensors import new_period_sensor
 from .constants import PG_URI_ENV, DBT_PROJECT_DIR, DBT_PROFILES_DIR
@@ -52,6 +52,6 @@ defs = Definitions(
         "postgres": pg_resource,
         "mlflow": mlflow_resource,
     },
-    jobs=[full_pipeline_job, ingestion_job],
+    jobs=[refresh_canonical, ingestion_job],
     sensors=[new_period_sensor],
 )
