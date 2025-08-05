@@ -2,7 +2,6 @@ import os
 import yaml
 import time
 import pandas as pd
-import pytest
 import mlflow
 from mlflow.tracking import MlflowClient
 
