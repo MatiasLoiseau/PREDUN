@@ -11,7 +11,7 @@ refresh_canonical = define_asset_job(
     ),
 )
 
-train_ml_model = define_asset_job(
-    name="train_ml_model",
-    selection=AssetSelection.assets("train_student_dropout_model"),
+complete_ml_pipeline = define_asset_job(
+    name="complete_ml_pipeline",
+    selection=AssetSelection.assets("train_student_dropout_model", "predict_student_dropout_risk"),
 )

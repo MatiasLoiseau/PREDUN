@@ -2,7 +2,7 @@
 from .dbt_assets import dbt_project_assets
 from .ml_assets import (
     train_student_dropout_model,
-    score_student_dropout_risk,
+    predict_student_dropout_risk,
 )
 from .ingestion_assets import (
     format_history_data,
@@ -14,7 +14,7 @@ from .ingestion_assets import (
 __all__ = [
     "dbt_project_assets",
     "train_student_dropout_model",
-    "score_student_dropout_risk",
+    "predict_student_dropout_risk",
     "format_history_data",
     "format_students",
     "format_percentage",

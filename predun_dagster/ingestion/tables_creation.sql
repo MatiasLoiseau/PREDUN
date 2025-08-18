@@ -248,3 +248,53 @@ create table marts.student_panel (
     dias_desde_ult_periodo    integer,
     dropout_next              integer          not null
 );
+
+CREATE SCHEMA IF NOT EXISTS predictions;
+
+alter schema predictions owner to siu;
+
+-- Tabla principal de predicciones
+CREATE TABLE IF NOT EXISTS predictions.student_dropout_predictions (
+    legajo VARCHAR(50) NOT NULL,
+    academic_period VARCHAR(20),
+    cod_carrera VARCHAR(20),
+    dropout_prediction INTEGER NOT NULL CHECK (dropout_prediction IN (0, 1)),
+    dropout_probability FLOAT NOT NULL CHECK (dropout_probability >= 0 AND dropout_probability <= 1),
+    prediction_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    model_version VARCHAR(50),
+    PRIMARY KEY (legajo, prediction_date)
+);
+
+-- Índices para mejorar performance
+CREATE INDEX IF NOT EXISTS idx_predictions_probability 
+ON predictions.student_dropout_predictions (dropout_probability DESC);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_carrera 
+ON predictions.student_dropout_predictions (cod_carrera);
+
+CREATE INDEX IF NOT EXISTS idx_predictions_date 
+ON predictions.student_dropout_predictions (prediction_date DESC);
+
+-- Vista para obtener las predicciones más recientes
+CREATE OR REPLACE VIEW predictions.latest_predictions AS
+SELECT 
+    legajo,
+    academic_period,
+    cod_carrera,
+    dropout_prediction,
+    dropout_probability,
+    CASE 
+        WHEN dropout_probability >= 0.8 THEN 'Muy Alto'
+        WHEN dropout_probability >= 0.6 THEN 'Alto'
+        WHEN dropout_probability >= 0.4 THEN 'Medio'
+        WHEN dropout_probability >= 0.2 THEN 'Bajo'
+        ELSE 'Muy Bajo'
+    END as risk_level,
+    prediction_date,
+    model_version
+FROM predictions.student_dropout_predictions p1
+WHERE prediction_date = (
+    SELECT MAX(prediction_date) 
+    FROM predictions.student_dropout_predictions p2 
+    WHERE p2.legajo = p1.legajo
+);

@@ -52,6 +52,47 @@ def dbt_project_assets(context: AssetExecutionContext):
                 for result in run_results.get('results', []):
                     model_name = result.get('unique_id', '').split('.')[-1]
                     if model_name:
+                        execution_time_model = result.get('execution_time', 0)
+                        status_success = 1 if result.get('status') == 'success' else 0
+                        
+                        mlflow.log_metric(f"dbt_model_{model_name}_execution_time", execution_time_model)
+                        mlflow.log_metric(f"dbt_model_{model_name}_success", status_success)
+                
+                # Log run_results.json as an artifact
+                mlflow.log_artifact(run_results_path, "dbt_artifacts")
+                
+            # Also log manifest.json as an artifact if it exists
+            if os.path.exists(str(MANIFEST_PATH)):
+                mlflow.log_artifact(str(MANIFEST_PATH), "dbt_artifacts")
+                
+        except Exception as e:
+            context.log.error(f"Error logging DBT metrics: {str(e)}")
+            
+        # After DBT run completes, collect and log metrics about the models
+        try:
+            # Log DBT run metrics from run_results.json if it exists
+            run_results_path = os.path.join(DBT_PROJECT_DIR, "target", "run_results.json")
+            if os.path.exists(run_results_path):
+                with open(run_results_path, 'r') as f:
+                    run_results = json.load(f)
+                
+                # Calculate overall execution metrics
+                execution_time = time.time() - start_time
+                mlflow.log_metric("dbt_execution_time_seconds", execution_time)
+                
+                # Parse run results for additional metrics
+                total_models = len(run_results.get('results', []))
+                successful_models = sum(1 for r in run_results.get('results', []) if r.get('status') == 'success')
+                failed_models = total_models - successful_models
+                
+                mlflow.log_metric("dbt_total_models", total_models)
+                mlflow.log_metric("dbt_successful_models", successful_models)
+                mlflow.log_metric("dbt_failed_models", failed_models)
+                
+                # Log individual model metrics
+                for result in run_results.get('results', []):
+                    model_name = result.get('unique_id', '').split('.')[-1]
+                    if model_name:
                         execution_time = result.get('execution_time', 0)
                         status_success = 1 if result.get('status') == 'success' else 0
                         
