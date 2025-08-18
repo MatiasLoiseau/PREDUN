@@ -10,3 +10,8 @@ refresh_canonical = define_asset_job(
         ["marts", "student_panel"],
     ),
 )
+
+train_ml_model = define_asset_job(
+    name="train_ml_model",
+    selection=AssetSelection.assets("train_student_dropout_model"),
+)

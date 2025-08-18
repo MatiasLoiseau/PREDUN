@@ -14,7 +14,7 @@ from .assets import (
 )
 from .resources import PostgresResource, MLflowResource
 from .monitoring import MLFlowMonitoringResource
-from .jobs import refresh_canonical
+from .jobs import refresh_canonical, train_ml_model
 from .jobs_ingestion import ingestion_job
 from .sensors import new_period_sensor
 from .constants import PG_URI_ENV, DBT_PROJECT_DIR, DBT_PROFILES_DIR
@@ -42,7 +42,7 @@ experiment_name = f"data_pipeline_monitoring_{hostname}_{today}"
 mlflow_monitoring = MLFlowMonitoringResource(
     mlflow_tracking_uri=os.getenv(
         "MLFLOW_TRACKING_URI",
-        f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('POSTGRES_HOST')}/{os.getenv('MLFLOW_POSTGRES_DB')}"
+        "http://localhost:8002"  # MLFlow server running on port 8002
     ),
     experiment_name=experiment_name
 )
@@ -69,6 +69,6 @@ defs = Definitions(
         "mlflow": mlflow_resource,
         "mlflow_monitoring": mlflow_monitoring,
     },
-    jobs=[refresh_canonical, ingestion_job],
+    jobs=[refresh_canonical, train_ml_model, ingestion_job],
     sensors=[new_period_sensor],
 )

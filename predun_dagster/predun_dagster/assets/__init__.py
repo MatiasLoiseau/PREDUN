@@ -12,7 +12,7 @@ from .ingestion_assets import (
 )
 
 __all__ = [
-    "dbt_assets",
+    "dbt_project_assets",
     "train_student_dropout_model",
     "score_student_dropout_risk",
     "format_history_data",
