@@ -1,7 +1,7 @@
 # PREDUN: Predicting Student Dropout Rates at UNDAV Using MLOps
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
-[![Stable Release](https://img.shields.io/badge/development-v0.0.1-brightgreen.svg)](https://github.com/your-repo/releases)
+[![Stable Release](https://img.shields.io/badge/development-v0.1.0-brightgreen.svg)](https://github.com/your-repo/releases)
 
 PREDUN stands for "Predicción de Deserción Universitaria en UNDAV".
 
