@@ -1,0 +1,47 @@
+version: 1
+default_environment: dev
+project_id: 5edd7a87-c0b8-4e42-b1b6-7ffebc0f95ce
+
+environments:
+- name: dev
+- name: staging  
+- name: prod
+
+plugins:
+  extractors:
+  - name: tap-csv
+    namespace: tap_csv
+    pip_url: pipelinewise-tap-csv
+    executable: tap-csv
+    config:
+      files:
+      - entity: ipc_categories
+        path: data/ipc_categories.csv
+        keys: [indice_tiempo]
+      - entity: unemployment
+        path: data/unemployment.csv  
+        keys: [indice_tiempo]
+      - entity: emae
+        path: data/emae.csv
+        keys: [indice_tiempo]
+
+  loaders:
+  - name: target-postgres
+    namespace: target_postgres
+    pip_url: pipelinewise-target-postgres
+    executable: target-postgres
+    config:
+      host: localhost
+      port: 5432
+      user: siu
+      password: siu
+      dbname: postgres
+      default_target_schema: canonical
+
+  utilities:
+  - name: dbt-postgres
+    namespace: dbt
+    pip_url: dbt-core~=1.0.0 dbt-postgres~=1.0.0
+    executable: dbt
+
+schedules: []

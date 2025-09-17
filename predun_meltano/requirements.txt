@@ -1,0 +1,14 @@
+# Dependencias para el proyecto Meltano INDEC
+meltano>=3.9.1
+pandas>=2.0.0
+requests>=2.28.0
+psycopg2-binary>=2.9.0
+python-dotenv>=1.0.0
+
+# Extractors y loaders específicos
+pipelinewise-tap-csv
+pipelinewise-target-postgres
+
+# Utilities
+dbt-core~=1.0.0
+dbt-postgres~=1.0.0

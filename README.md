@@ -19,6 +19,7 @@ PREDUN stands for "Predicción de Deserción Universitaria en UNDAV".
 - [Data Ingestion](#data-ingestion)
 - [DBT Usage](#dbt-usage)
 - [Dagster Usage](#dagster-usage)
+- [Meltano Usage](#meltano-usage)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -48,6 +49,7 @@ ingestion/            # Data cleaning and ingestion scripts
 models/               # ML models
 predun_dagster/       # Dagster pipelines
 predun_dbt/           # DBT models and macros
+predun_meltano/       # Meltano data pipeline for INDEC Argentina APIs
 utils/                # Utility scripts
 ```
 
@@ -225,6 +227,68 @@ Set `version` to the desired period (e.g., `2024_2C` or `2025_1C`) and provide y
 3. **Run the Refresh Canonical Job**
 
 After ingestion, execute the `refresh_canonical` job from the Dagster UI to update canonical tables.
+
+## Meltano Usage
+
+The `predun_meltano` module implements a data pipeline to extract economic indicators from INDEC Argentina APIs and load them into PostgreSQL.
+
+### Datasets Extracted
+
+1. **IPC by Categories** (Consumer Price Index)
+   - Nuclear, Regulated, and Seasonal categories
+   - Monthly frequency, base year 2016
+
+2. **EPH Unemployment Rate** (Gran San Juan)
+   - Quarterly unemployment rates
+   - Continuous Household Survey data
+
+3. **EMAE Indicators** (Monthly Economic Activity Estimator)
+   - General level economic activity
+   - Monthly frequency
+
+### Setup and Usage
+
+1. **Navigate to Meltano directory:**
+
+```bash
+cd predun_meltano
+```
+
+2. **Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+```
+
+3. **Create PostgreSQL tables:**
+
+Execute the SQL commands in `create_tables.sql` to create the necessary tables in the `canonical` schema:
+
+```bash
+psql -U postgres -h localhost -p 5432 -f create_tables.sql
+```
+
+4. **Run the complete pipeline:**
+
+```bash
+python indec_pipeline.py
+```
+
+This will:
+- Extract data from INDEC APIs
+- Load data into PostgreSQL canonical schema
+- Create tables: `canonical.ipc_categories`, `canonical.unemployment_rates`, `canonical.emae_indicators`
+
+### Manual Steps
+
+You can also run the pipeline manually:
+
+```bash
+# Extract and load data directly from INDEC APIs to PostgreSQL
+python indec_pipeline.py
+```
+
+For detailed information, see the [Meltano README](predun_meltano/README.md).
 
 ## License
 
