@@ -19,7 +19,7 @@ PREDUN stands for "Predicción de Deserción Universitaria en UNDAV".
 - [Data Ingestion](#data-ingestion)
 - [DBT Usage](#dbt-usage)
 - [Dagster Usage](#dagster-usage)
-- [Meltano Usage](#meltano-usage)
+- [INDEC Data Pipeline Usage](#indec-data-pipeline-usage)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
 
@@ -49,7 +49,7 @@ ingestion/            # Data cleaning and ingestion scripts
 models/               # ML models
 predun_dagster/       # Dagster pipelines
 predun_dbt/           # DBT models and macros
-predun_meltano/       # Meltano data pipeline for INDEC Argentina APIs
+predun_indec/         # INDEC economic indicators data pipeline
 utils/                # Utility scripts
 ```
 
@@ -228,9 +228,9 @@ Set `version` to the desired period (e.g., `2024_2C` or `2025_1C`) and provide y
 
 After ingestion, execute the `refresh_canonical` job from the Dagster UI to update canonical tables.
 
-## Meltano Usage
+## INDEC Data Pipeline Usage
 
-The `predun_meltano` module implements a data pipeline to extract economic indicators from INDEC Argentina APIs and load them into PostgreSQL.
+The `predun_indec` module implements a data pipeline to extract economic indicators from INDEC Argentina APIs and load them into PostgreSQL.
 
 ### Datasets Extracted
 
@@ -248,16 +248,16 @@ The `predun_meltano` module implements a data pipeline to extract economic indic
 
 ### Setup and Usage
 
-1. **Navigate to Meltano directory:**
+1. **Navigate to INDEC pipeline directory:**
 
 ```bash
-cd predun_meltano
+cd predun_indec
 ```
 
 2. **Install dependencies:**
 
 ```bash
-pip install -r requirements.txt
+pip install requests pandas psycopg2-binary
 ```
 
 3. **Create PostgreSQL tables:**
@@ -271,7 +271,7 @@ psql -U postgres -h localhost -p 5432 -f create_tables.sql
 4. **Run the complete pipeline:**
 
 ```bash
-python indec_pipeline.py
+python indec_data_pipeline.py
 ```
 
 This will:
@@ -285,10 +285,8 @@ You can also run the pipeline manually:
 
 ```bash
 # Extract and load data directly from INDEC APIs to PostgreSQL
-python indec_pipeline.py
+python indec_data_pipeline.py
 ```
-
-For detailed information, see the [Meltano README](predun_meltano/README.md).
 
 ## License
 

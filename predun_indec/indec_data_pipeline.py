@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Pipeline INDEC → PostgreSQL
-Extrae datos de las APIs del INDEC Argentina y los carga directamente a PostgreSQL
+INDEC Data Pipeline → PostgreSQL
+Extrae indicadores económicos de las APIs del INDEC Argentina y los carga directamente a PostgreSQL.
+
+Este pipeline obtiene:
+- IPC por categorías (núcleo, regulados, estacionales)  
+- Tasas de desempleo EPH (Gran San Juan)
+- Indicadores EMAE (Estimador Mensual de Actividad Económica)
 """
 
 import requests
