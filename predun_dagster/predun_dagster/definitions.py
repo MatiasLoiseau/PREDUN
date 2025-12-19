@@ -15,7 +15,7 @@ from .assets import (
 from .resources import PostgresResource, MLflowResource
 from .monitoring import MLFlowMonitoringResource
 from .jobs import refresh_canonical, complete_ml_pipeline
-from .jobs_ingestion import ingestion_job
+from .jobs_ingestion import format_data_job, ingest_to_staging_job
 from .sensors import new_period_sensor
 from .constants import PG_URI_ENV, DBT_PROJECT_DIR, DBT_PROFILES_DIR
 from dagster_dbt import DbtCliResource
@@ -72,7 +72,8 @@ defs = Definitions(
     jobs=[
         refresh_canonical, 
         complete_ml_pipeline, 
-        ingestion_job
+        format_data_job,
+        ingest_to_staging_job,
     ],
     sensors=[new_period_sensor],
 )

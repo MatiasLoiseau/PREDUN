@@ -200,9 +200,10 @@ dagster dev -m predun_dagster
 
 Access the Dagster UI at: [http://localhost:3000](http://localhost:3000)
 
-2. **Run the Ingestion Job**
 
-In the Dagster UI, launch the ingestion job with the following configuration (replace `VERSION`, `user`, and `password` as needed):
+2. **Run the Format Data Job**
+
+In the Dagster UI, launch the format data job with the following configuration (replace `VERSION` as needed):
 
 ```yaml
 ops:
@@ -215,16 +216,24 @@ ops:
   format_percentage:
     config:
       version: "VERSION"
+```
+
+3. **Run the Ingest to Staging Job**
+
+After running the format data job, launch the ingest to staging job with the following configuration (replace `VERSION`, `PG_USER`, and `PG_PASSWORD` as needed):
+
+```yaml
+ops:
   ingest_to_staging:
     config:
       version: "VERSION"
-      pg_user: "user"
-      pg_password: "password"
+      pg_user: "PG_USER"
+      pg_password: "PG_PASSWORD"
 ```
 
 Set `version` to the desired period (e.g., `2024_2C` or `2025_1C`) and provide your PostgreSQL username and password.
 
-3. **Run the Refresh Canonical Job**
+4. **Run the Refresh Canonical Job**
 
 After ingestion, execute the `refresh_canonical` job from the Dagster UI to update canonical tables.
 
