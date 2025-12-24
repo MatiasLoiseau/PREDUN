@@ -15,6 +15,31 @@ src as (
     select *
     from {{ ref('porcentaje_avance_flat') }}
     where academic_period = (select tag from latest_tag)
+),
+
+-- Normalizamos legajo en canonical
+cleaned as (
+    select
+        academic_period,
+        case
+            when regexp_replace(split_part(trim(legajo), '.', 1), '[^0-9]', '', 'g') ~ '^[0-9]+$'
+            then regexp_replace(split_part(trim(legajo), '.', 1), '[^0-9]', '', 'g')
+            else null
+        end as legajo,
+        persona_id,
+        es_regular,
+        orden_titulo,
+        cod_carrera,
+        nombre_carrera,
+        cod_titulo,
+        titulo_obtenido,
+        estado_titulo,
+        reserva_1,
+        reserva_2,
+        vigente,
+        porcentaje_avance,
+        materias_aprobadas
+    from src
 )
 
 select distinct
@@ -39,4 +64,5 @@ select distinct
     porcentaje_avance,
     materias_aprobadas,
     current_timestamp as inserted_at
-from src
+from cleaned
+where legajo is not null

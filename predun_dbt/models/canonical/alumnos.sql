@@ -15,6 +15,38 @@ src as (
     select *
     from {{ ref('alumnos_flat') }}
     where academic_period = (select tag from latest_tag)
+),
+
+-- Normalizamos legajo en canonical
+cleaned as (
+    select
+        academic_period,
+        case
+            when regexp_replace(split_part(trim(legajo), '.', 1), '[^0-9]', '', 'g') ~ '^[0-9]+$'
+            then regexp_replace(split_part(trim(legajo), '.', 1), '[^0-9]', '', 'g')
+            else null
+        end as legajo,
+        calidad,
+        nombre,
+        plan_nombre,
+        plan_codigo,
+        anio_academico,
+        fecha_inscripcion,
+        regular,
+        codigo_carrera,
+        nombre_carrera,
+        codigo_pertenece,
+        nombre_pertenece,
+        fecha_nacimiento,
+        nacionalidad,
+        pais_nacimiento,
+        sexo,
+        identidad_genero,
+        tipo_ingreso,
+        dpto_partido_nombre,
+        localidad_nombre,
+        pais_nombre
+    from src
 )
 
 select distinct
@@ -48,4 +80,5 @@ select distinct
     localidad_nombre,
     pais_nombre,
     current_timestamp as inserted_at
-from src
+from cleaned
+where legajo is not null
