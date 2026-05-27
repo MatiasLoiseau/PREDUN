@@ -82,3 +82,4 @@ select distinct
     current_timestamp as inserted_at
 from cleaned
 where legajo is not null
+  and codigo_carrera in {{ allowed_carreras() }}
