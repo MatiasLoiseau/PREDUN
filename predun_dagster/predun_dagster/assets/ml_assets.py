@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 import numpy as np
 import pandas as pd
@@ -15,6 +16,11 @@ from sklearn.metrics import classification_report, roc_auc_score
 from dagster import asset, AssetExecutionContext
 import subprocess
 import logging
+
+
+def _conda_bin() -> str:
+    """Resolve conda executable from env or PATH, avoids hardcoded absolute paths."""
+    return os.environ.get("CONDA_EXE") or shutil.which("conda") or "conda"
 
 
 def run_model_in_conda_env(context: AssetExecutionContext):
@@ -200,7 +206,7 @@ with mlflow.start_run(run_name="student_dropout_model_dagster_training") as run:
         start_time = time.time()
         
         cmd = [
-            "/Users/matiasloiseau/anaconda3/bin/conda", "run", "-n", "eda-predun", 
+            _conda_bin(), "run", "-n", "eda-predun",
             "python", script_path
         ]
         
@@ -471,7 +477,7 @@ print("DAGSTER_RESULT:" + json.dumps(summary))
         start_time = time.time()
         
         cmd = [
-            "/Users/matiasloiseau/anaconda3/bin/conda", "run", "-n", "eda-predun", 
+            _conda_bin(), "run", "-n", "eda-predun",
             "python", script_path
         ]
         

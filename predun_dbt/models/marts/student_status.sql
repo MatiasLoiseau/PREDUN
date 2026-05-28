@@ -60,5 +60,5 @@ status_enriched as (
     cross join params p
 )
 
-select *
+select distinct *
 from status_enriched
