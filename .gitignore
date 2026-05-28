@@ -22,6 +22,8 @@ predun_dagster/.tmp_dagster_home_*/
 # C extensions
 *.so
 
+CLAUDE.md
+
 # Distribution / packaging
 .Python
 build/
