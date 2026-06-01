@@ -28,8 +28,8 @@ drift_job = define_asset_job(
 
 # Ciclo completo de ML: drift → entrenamiento multi-modelo → scoring
 # Ejecutar luego de refresh_canonical para tener student_panel actualizado.
-full_cycle_job = define_asset_job(
-    name="full_cycle_job",
+drift_train_predict = define_asset_job(
+    name="drift_train_predict",
     selection=AssetSelection.assets(
         "detect_data_drift",
         "train_student_dropout_model",

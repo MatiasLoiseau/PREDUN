@@ -378,19 +378,19 @@ print("DAGSTER_RESULT:" + json.dumps(output))
     config_schema={
         "train_sample_frac": Field(
             float,
-            default_value=0.15,
+            default_value=1.0,
             description=(
                 "Fracción del set de entrenamiento a usar. "
-                "0.15 = modo dev (~210K filas, ~2 min). "
-                "1.0 = full run (1.4M filas, ~40-50 min)."
+                "1.0 = full run (1.4M filas, ~40-50 min). "
+                "0.15 = modo dev (~210K filas, ~2 min)."
             ),
         ),
         "n_estimators": Field(
             int,
-            default_value=30,
+            default_value=100,
             description=(
                 "Número de estimadores para GBM y RandomForest. "
-                "30 = modo dev. 100 = full run."
+                "100 = full run. 30 = modo dev (más rápido)."
             ),
         ),
     },

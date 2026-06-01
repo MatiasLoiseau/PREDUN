@@ -239,7 +239,7 @@ After ingestion, execute the `refresh_canonical` job from the Dagster UI to upda
 
 5. **Run the ML Pipeline (drift + training + scoring)**
 
-Use `full_cycle_job` to run drift detection, multi-model training and scoring in one shot.
+Use `drift_train_predict` to run drift detection, multi-model training and scoring in one shot.
 The training asset accepts two optional config parameters:
 
 | Parameter | Default | Description |
@@ -272,10 +272,10 @@ If no config is provided, the dev defaults are used automatically.
 The job sequence for a new academic period is:
 
 ```
-refresh_canonical  →  full_cycle_job
+refresh_canonical  →  drift_train_predict
 ```
 
-After `full_cycle_job` completes, the winning model is automatically tagged with
+After `drift_train_predict` completes, the winning model is automatically tagged with
 `data_version`, `thesis_run`, and `staging_periods` in MLflow — no manual tagging needed.
 
 ## INDEC Data Pipeline Usage
