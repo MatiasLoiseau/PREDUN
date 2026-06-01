@@ -22,7 +22,7 @@ import tempfile
 import json
 import logging
 
-from dagster import asset, AssetExecutionContext
+from dagster import asset, AssetExecutionContext, Field
 
 
 def _conda_bin() -> str:
@@ -31,9 +31,17 @@ def _conda_bin() -> str:
 
 # ── Script de entrenamiento multi-modelo ──────────────────────────────────────
 
-def run_multi_model_training_in_conda_env(context: AssetExecutionContext) -> dict:
+def run_multi_model_training_in_conda_env(
+    context: AssetExecutionContext,
+    train_sample_frac: float,
+    n_estimators: int,
+) -> dict:
     """
     Ejecuta el entrenamiento de los 3 modelos candidatos en el entorno eda-predun.
+
+    Args:
+        train_sample_frac: fracción del set de entrenamiento a usar (1.0 = datos completos).
+        n_estimators:      número de estimadores para GBM y RandomForest.
 
     Retorna un dict con el nombre del modelo ganador, su AUC y el run_id de MLflow.
     """
@@ -97,11 +105,8 @@ train_mask = df["academic_period"] <= TRAIN_CUTOFF
 X_train, y_train = X[train_mask], y[train_mask]
 X_val,   y_val   = X[~train_mask], y[~train_mask]
 
-# ── Subsampleo del training para desarrollo/pruebas ───────────────────────────
-# Con 1.4M filas el entrenamiento es muy lento. Para pruebas usamos el 15%
-# estratificado (≈210K filas), suficiente para comparar modelos.
-# TODO: quitar TRAIN_SAMPLE_FRAC (ponerlo en 1.0) para el run final de la tesis.
-TRAIN_SAMPLE_FRAC = 0.15
+# ── Subsampleo del training (configurable desde Dagster) ──────────────────────
+TRAIN_SAMPLE_FRAC = {train_sample_frac}
 if TRAIN_SAMPLE_FRAC < 1.0:
     X_train, _, y_train, _ = train_test_split(
         X_train, y_train,
@@ -129,14 +134,12 @@ def build_pipeline(classifier):
     ])
     return Pipeline([("prep", preprocess), ("model", classifier)])
 
-# ── Modelos candidatos ─────────────────────────────────────────────────────────
-# Parámetros reducidos para desarrollo. Para el run final de la tesis,
-# aumentar n_estimators a 100/200 y quitar max_depth.
+# ── Modelos candidatos (n_estimators configurable desde Dagster) ───────────────
 model_candidates = [
     ("GradientBoosting",   GradientBoostingClassifier(
-        n_estimators=30, max_depth=3, subsample=0.8, random_state=42)),
+        n_estimators={n_estimators}, max_depth=3, subsample=0.8, random_state=42)),
     ("RandomForest",       RandomForestClassifier(
-        n_estimators=30, max_depth=8, random_state=42, n_jobs=-1)),
+        n_estimators={n_estimators}, max_depth=8, random_state=42, n_jobs=-1)),
     ("LogisticRegression", LogisticRegression(
         max_iter=300, solver="saga", random_state=42, n_jobs=-1)),
 ]
@@ -372,6 +375,25 @@ print("DAGSTER_RESULT:" + json.dumps(output))
 # ── Asset de entrenamiento ────────────────────────────────────────────────────
 
 @asset(
+    config_schema={
+        "train_sample_frac": Field(
+            float,
+            default_value=0.15,
+            description=(
+                "Fracción del set de entrenamiento a usar. "
+                "0.15 = modo dev (~210K filas, ~2 min). "
+                "1.0 = full run (1.4M filas, ~40-50 min)."
+            ),
+        ),
+        "n_estimators": Field(
+            int,
+            default_value=30,
+            description=(
+                "Número de estimadores para GBM y RandomForest. "
+                "30 = modo dev. 100 = full run."
+            ),
+        ),
+    },
     required_resource_keys={"mlflow_monitoring"},
     deps=["dbt_project_assets"],
 )
@@ -380,13 +402,33 @@ def train_student_dropout_model(context: AssetExecutionContext):
     Entrena 3 modelos candidatos (GradientBoosting, RandomForest, LogisticRegression),
     los evalúa sobre el mismo set de validación, registra el mejor en el MLflow
     Model Registry y persiste la comparación en predictions.model_evaluations.
+
+    Configuración (pasada desde la UI de Dagster o YAML de job):
+        train_sample_frac: fracción de datos de entrenamiento (default 0.15)
+        n_estimators:      estimadores para GBM y RF (default 30)
     """
+    train_sample_frac = context.op_config["train_sample_frac"]
+    n_estimators      = context.op_config["n_estimators"]
+
+    context.log.info(
+        f"Config: train_sample_frac={train_sample_frac}, n_estimators={n_estimators}"
+    )
+
     with context.resources.mlflow_monitoring.track_job(
         job_name="train_student_dropout_model",
-        tags={"environment": "eda-predun", "mode": "multi_model"},
+        tags={
+            "environment":       "eda-predun",
+            "mode":              "multi_model",
+            "train_sample_frac": str(train_sample_frac),
+            "n_estimators":      str(n_estimators),
+        },
     ):
         context.log.info("Iniciando entrenamiento multi-modelo")
-        result = run_multi_model_training_in_conda_env(context)
+        result = run_multi_model_training_in_conda_env(
+            context,
+            train_sample_frac=train_sample_frac,
+            n_estimators=n_estimators,
+        )
 
         if "roc_auc" in result:
             context.resources.mlflow_monitoring.log_process_metrics(
