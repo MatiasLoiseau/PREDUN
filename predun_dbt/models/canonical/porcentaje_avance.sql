@@ -37,7 +37,13 @@ cleaned as (
         reserva_1,
         reserva_2,
         vigente,
-        porcentaje_avance,
+        -- Normalize locale-specific decimal separator (comma → dot) so downstream
+        -- consumers can cast directly without per-site regex logic.
+        case
+            when trim(porcentaje_avance) ~ '^\d+,\d+$'
+            then replace(trim(porcentaje_avance), ',', '.')
+            else trim(porcentaje_avance)
+        end as porcentaje_avance,
         materias_aprobadas
     from src
 )

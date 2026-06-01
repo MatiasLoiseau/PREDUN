@@ -21,8 +21,8 @@ graduados as (
     from {{ ref('porcentaje_avance') }}
     where coalesce(
         case
-            when trim(porcentaje_avance) ~ '^\d+(\.\d+)?$'
-            then porcentaje_avance::numeric
+            when trim(porcentaje_avance) ~ '^\d+([.,]\d+)?$'
+            then replace(trim(porcentaje_avance), ',', '.')::numeric
             else null
         end,
         0
