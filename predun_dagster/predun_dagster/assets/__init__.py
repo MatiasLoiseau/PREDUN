@@ -1,5 +1,6 @@
 
 from .dbt_assets import dbt_project_assets
+from .drift_assets import detect_data_drift
 from .ml_assets import (
     train_student_dropout_model,
     predict_student_dropout_risk,
@@ -13,6 +14,7 @@ from .ingestion_assets import (
 
 __all__ = [
     "dbt_project_assets",
+    "detect_data_drift",
     "train_student_dropout_model",
     "predict_student_dropout_risk",
     "format_history_data",

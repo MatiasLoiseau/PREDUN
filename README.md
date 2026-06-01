@@ -1,7 +1,7 @@
 # PREDUN: Predicting Student Dropout Rates at UNDAV Using MLOps
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
-[![Stable Release](https://img.shields.io/badge/development-v0.2.0-brightgreen.svg)](https://github.com/your-repo/releases)
+[![Stable Release](https://img.shields.io/badge/development-v0.3.0-brightgreen.svg)](https://github.com/your-repo/releases)
 
 PREDUN stands for "Predicción de Deserción Universitaria en UNDAV".
 
@@ -236,6 +236,47 @@ Set `version` to the desired period (e.g., `2024_2C` or `2025_1C`) and provide y
 4. **Run the Refresh Canonical Job**
 
 After ingestion, execute the `refresh_canonical` job from the Dagster UI to update canonical tables.
+
+5. **Run the ML Pipeline (drift + training + scoring)**
+
+Use `drift_train_predict` to run drift detection, multi-model training and scoring in one shot.
+The training asset accepts two optional config parameters:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `train_sample_frac` | `0.15` | Fraction of training data to use. `0.15` ≈ dev mode (~2 min). `1.0` = full run (~40-50 min). |
+| `n_estimators` | `30` | Number of estimators for GBM and RandomForest. `30` = dev. `100` = full run. |
+
+**Dev run** (default — fast, for testing):
+
+```yaml
+ops:
+  train_student_dropout_model:
+    config:
+      train_sample_frac: 0.15
+      n_estimators: 30
+```
+
+**Full run** (for the final thesis results):
+
+```yaml
+ops:
+  train_student_dropout_model:
+    config:
+      train_sample_frac: 1.0
+      n_estimators: 100
+```
+
+If no config is provided, the dev defaults are used automatically.
+
+The job sequence for a new academic period is:
+
+```
+refresh_canonical  →  drift_train_predict
+```
+
+After `drift_train_predict` completes, the winning model is automatically tagged with
+`data_version`, `thesis_run`, and `staging_periods` in MLflow — no manual tagging needed.
 
 ## INDEC Data Pipeline Usage
 
