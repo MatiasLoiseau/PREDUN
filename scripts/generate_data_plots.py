@@ -477,6 +477,154 @@ def plot_prediction_distribution(engine, out_dir):
     print(f"  Guardado: {path}")
 
 
+# ── Reporte de texto (sin imágenes) ──────────────────────────────────────────
+def print_text_summary(student_status, student_panel, engine):
+    SEP = "=" * 70
+    HR  = "-" * 70
+
+    print(f"\n{SEP}")
+    print("  RESUMEN ESTADÍSTICO DEL DATASET — UNDAV")
+    print(SEP)
+
+    # 1. Distribución de estados
+    print("\n  1. Distribución de estados estudiantiles:")
+    print(HR)
+    order  = ["estudiando", "graduado", "abandonó"]
+    counts = student_status["status"].value_counts().reindex(
+        [s for s in order if s in student_status["status"].unique()]
+    )
+    total = counts.sum()
+    print(f"  Total legajos: {total:,}")
+    for status, n in counts.items():
+        pct  = n / total * 100
+        barra = "█" * int(pct / 2)
+        print(f"  {STATUS_LABELS.get(status, status):<35}  {n:>8,}  ({pct:5.1f}%)  {barra}")
+
+    # 2. Panel por período
+    print(f"\n  2. Panel longitudinal por período (filas y tasa de dropout):")
+    print(HR)
+    stats = (
+        student_panel.groupby("academic_period")
+        .agg(n_legajos=("legajo", "nunique"), n_filas=("legajo", "count"),
+             dropout_rate=("dropout_next", "mean"))
+        .reset_index()
+        .sort_values("academic_period")
+    )
+    print(f"  {'Período':<12}  {'Legajos':>8}  {'Filas':>8}  {'Dropout%':>9}  Split")
+    print(f"  {'-'*12}  {'-'*8}  {'-'*8}  {'-'*9}  -----")
+    for _, row in stats.iterrows():
+        split = "TRAIN" if row["academic_period"] <= TRAIN_CUTOFF else "val  "
+        print(f"  {row['academic_period']:<12}  {int(row['n_legajos']):>8,}  "
+              f"{int(row['n_filas']):>8,}  {row['dropout_rate']*100:>8.1f}%  {split}")
+
+    # 3. Estadísticas de features
+    print(f"\n  3. Estadísticas de features numéricas (períodos con actividad > 0):")
+    print(HR)
+    num_cols = [
+        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "promo_win3", "nota_win3",
+    ]
+    labels = {
+        "materias_en_periodo":   "Materias cursadas (período)",
+        "promo_en_periodo":      "Materias aprobadas (período)",
+        "nota_media_en_periodo": "Nota media (período)",
+        "materias_win3":         "Materias cursadas (ventana 4p)",
+        "promo_win3":            "Materias aprobadas (ventana 4p)",
+        "nota_win3":             "Nota media (ventana 4p)",
+    }
+    print(f"  {'Feature':<30}  {'n>0':>7}  {'Media':>7}  {'Mediana':>8}  {'Std':>7}  {'p90':>7}")
+    print(f"  {'-'*30}  {'-'*7}  {'-'*7}  {'-'*8}  {'-'*7}  {'-'*7}")
+    for col in num_cols:
+        if col not in student_panel.columns:
+            continue
+        s    = pd.to_numeric(student_panel[col], errors="coerce")
+        s_nz = s[s > 0]
+        if s_nz.empty:
+            continue
+        print(f"  {labels.get(col, col):<30}  {len(s_nz):>7,}  {s_nz.mean():>7.2f}  "
+              f"{s_nz.median():>8.2f}  {s_nz.std():>7.2f}  {s_nz.quantile(0.9):>7.2f}")
+
+    # 4. Balance de clases train/val
+    print(f"\n  4. Balance de clases — train vs validación:")
+    print(HR)
+    for split_label, cond in [("TRAIN", student_panel["academic_period"] <= TRAIN_CUTOFF),
+                               ("VAL  ", student_panel["academic_period"] > TRAIN_CUTOFF)]:
+        sub = student_panel[cond]
+        n   = len(sub)
+        if n == 0:
+            print(f"  {split_label}: (sin datos)")
+            continue
+        n1  = int(sub["dropout_next"].sum())
+        n0  = n - n1
+        print(f"  {split_label}  total={n:,}  abandono(1)={n1:,} ({n1/n*100:.1f}%)  "
+              f"activo(0)={n0:,} ({n0/n*100:.1f}%)")
+
+    # 5. Tasa de abandono por carrera
+    print(f"\n  5. Tasa de abandono por carrera (top 15 por volumen):")
+    print(HR)
+    latest = (
+        student_panel.sort_values("academic_period")
+        .groupby(["legajo", "cod_carrera"])
+        .last()
+        .reset_index()
+    )
+    by_carrera = (
+        latest.groupby("cod_carrera")
+        .agg(total=("legajo", "count"), abandonos=("dropout_next", "sum"))
+        .reset_index()
+    )
+    by_carrera["tasa"] = by_carrera["abandonos"] / by_carrera["total"] * 100
+    by_carrera = (
+        by_carrera[by_carrera["total"] >= 50]
+        .sort_values("total", ascending=False)
+        .head(15)
+        .sort_values("tasa", ascending=False)
+    )
+    print(f"  {'Carrera':<20}  {'Total':>7}  {'Abandonos':>10}  {'Tasa%':>7}")
+    print(f"  {'-'*20}  {'-'*7}  {'-'*10}  {'-'*7}")
+    for _, row in by_carrera.iterrows():
+        print(f"  {str(row['cod_carrera']):<20}  {int(row['total']):>7,}  "
+              f"{int(row['abandonos']):>10,}  {row['tasa']:>6.1f}%")
+
+    # 6. Correlaciones con dropout_next
+    print(f"\n  6. Correlaciones de Pearson con dropout_next:")
+    print(HR)
+    cols_corr = [
+        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "promo_win3", "nota_win3",
+    ]
+    df_corr = student_panel[cols_corr + ["dropout_next"]].dropna()
+    corr    = df_corr[cols_corr].corrwith(df_corr["dropout_next"]).sort_values()
+    for col, val in corr.items():
+        direction = "↓ riesgo" if val < 0 else "↑ riesgo"
+        barra     = "█" * int(abs(val) * 40)
+        print(f"  {labels.get(col, col):<35}  {val:>7.4f}  {direction}  {barra}")
+
+    # 7. Predicciones si están disponibles
+    try:
+        pred_df = pd.read_sql(
+            "SELECT dropout_probability, dropout_prediction FROM predictions.student_dropout_predictions",
+            engine,
+        )
+        if not pred_df.empty:
+            proba  = pred_df["dropout_probability"]
+            n_tot  = len(pred_df)
+            n_high = (proba >= 0.7).sum()
+            n_med  = ((proba >= 0.5) & (proba < 0.7)).sum()
+            n_low  = (proba < 0.5).sum()
+            print(f"\n  7. Distribución de riesgo en cohorte activa ({n_tot:,} estudiantes):")
+            print(HR)
+            print(f"  Riesgo alto  (>= 0.70): {n_high:>5,}  ({n_high/n_tot*100:.1f}%)")
+            print(f"  Riesgo medio [0.5-0.7): {n_med:>5,}  ({n_med/n_tot*100:.1f}%)")
+            print(f"  Riesgo bajo  (<  0.50): {n_low:>5,}  ({n_low/n_tot*100:.1f}%)")
+            print(f"  Probabilidad media     : {proba.mean():.4f}")
+            print(f"  Probabilidad mediana   : {proba.median():.4f}")
+    except Exception:
+        pass
+
+    print(f"\n{SEP}\n")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
     set_style()
@@ -502,8 +650,11 @@ def main():
     student_panel  = pd.read_sql("SELECT * FROM marts.student_panel", engine)
     print(f"  student_status : {len(student_status):,}")
     print(f"  student_panel  : {len(student_panel):,}\n")
-    print("Generando figuras...")
 
+    # Reporte de texto primero
+    print_text_summary(student_status, student_panel, engine)
+
+    print("Generando figuras...")
     plot_student_status(student_status, THESIS_FIGS_DIR)
     plot_active_per_period(student_panel, THESIS_FIGS_DIR)
     plot_panel_composition(student_panel, THESIS_FIGS_DIR)

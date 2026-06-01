@@ -23,6 +23,8 @@ import mlflow
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import (
     auc,
+    average_precision_score,
+    brier_score_loss,
     classification_report,
     confusion_matrix,
     precision_recall_curve,
@@ -423,6 +425,126 @@ def plot_metrics_by_period(y_val, proba, preds, val_periods, version, out_dir):
     print(f"  Guardado: {path}")
 
 
+# ── Métricas adicionales ──────────────────────────────────────────────────────
+def compute_extended_metrics(y_val, proba, preds, model, X_val, val_periods):
+    """Calcula métricas adicionales más allá de las básicas."""
+    metrics_ext = {}
+
+    # Brier Score (error cuadrático medio de probabilidades — menor es mejor)
+    metrics_ext["brier_score"] = brier_score_loss(y_val, proba)
+
+    # Average Precision (área bajo curva PR — mejor para clases desbalanceadas)
+    metrics_ext["average_precision"] = average_precision_score(y_val, proba)
+
+    # KS Statistic (máxima separación entre CDFs de las dos clases)
+    proba_pos = np.sort(proba[y_val == 1])
+    proba_neg = np.sort(proba[y_val == 0])
+    combined  = np.sort(np.concatenate([proba_pos, proba_neg]))
+    cdf_pos   = np.searchsorted(proba_pos, combined, side="right") / len(proba_pos)
+    cdf_neg   = np.searchsorted(proba_neg, combined, side="right") / len(proba_neg)
+    ks_stat   = float(np.max(np.abs(cdf_pos - cdf_neg)))
+    metrics_ext["ks_statistic"] = ks_stat
+
+    # Precision@K — cuántos de los top-K% predichos como riesgo son realmente abandono
+    for k_pct in [5, 10, 20, 30]:
+        k = int(len(proba) * k_pct / 100)
+        top_k_idx = np.argsort(proba)[::-1][:k]
+        precision_k = y_val.values[top_k_idx].mean()
+        metrics_ext[f"precision_at_{k_pct}pct"] = float(precision_k)
+
+    # Recall@K — qué fracción del abandono real captura el top-K%
+    total_abandono = y_val.sum()
+    for k_pct in [5, 10, 20, 30]:
+        k = int(len(proba) * k_pct / 100)
+        top_k_idx = np.argsort(proba)[::-1][:k]
+        recall_k = y_val.values[top_k_idx].sum() / total_abandono
+        metrics_ext[f"recall_at_{k_pct}pct"] = float(recall_k)
+
+    # AUC por período de validación
+    period_aucs = {}
+    for p in sorted(val_periods.unique()):
+        mask = (val_periods == p).values
+        if mask.sum() < 50 or len(np.unique(y_val.values[mask])) < 2:
+            continue
+        period_aucs[p] = float(roc_auc_score(y_val.values[mask], proba[mask]))
+    metrics_ext["auc_by_period"] = period_aucs
+
+    # AUC por carrera (si hay columna cod_carrera en X_val)
+    if "cod_carrera" in X_val.columns:
+        carrera_aucs = {}
+        for carrera in X_val["cod_carrera"].unique():
+            mask = (X_val["cod_carrera"] == carrera).values
+            if mask.sum() < 50 or len(np.unique(y_val.values[mask])) < 2:
+                continue
+            carrera_aucs[str(carrera)] = float(roc_auc_score(y_val.values[mask], proba[mask]))
+        metrics_ext["auc_by_carrera"] = dict(
+            sorted(carrera_aucs.items(), key=lambda x: x[1], reverse=True)
+        )
+
+    return metrics_ext
+
+
+def print_text_report(version, metrics, metrics_ext, X_train, X_val, y_val, val_periods):
+    """Imprime el reporte completo en texto para análisis sin imágenes."""
+    SEP = "=" * 70
+    HR  = "-" * 70
+
+    print(f"\n{SEP}")
+    print(f"  REPORTE DE MODELO — {VERSION_LABELS[version]}")
+    print(SEP)
+
+    print(f"\n  Tamaños de datos:")
+    print(f"    Train   : {metrics['train_size']:,} filas")
+    print(f"    Val     : {metrics['val_size']:,} filas")
+    print(f"    Dropout real en val: {metrics['dropout_rate_val']*100:.1f}%")
+    print(f"    Períodos val: {', '.join(metrics['val_periods'])}")
+
+    print(f"\n  Métricas de clasificación:")
+    print(HR)
+    print(f"    ROC-AUC              : {metrics['roc_auc']:.4f}")
+    print(f"    Accuracy             : {metrics['accuracy']:.4f}")
+    print(f"    Brier Score          : {metrics_ext['brier_score']:.4f}  (↓ mejor)")
+    print(f"    Average Precision    : {metrics_ext['average_precision']:.4f}")
+    print(f"    KS Statistic         : {metrics_ext['ks_statistic']:.4f}")
+
+    print(f"\n  Clase abandono (1):")
+    print(f"    F1           : {metrics['f1_1']:.4f}")
+    print(f"    Precision    : {metrics['precision_1']:.4f}")
+    print(f"    Recall       : {metrics['recall_1']:.4f}")
+    print(f"    Support      : {metrics['support_1']:,}")
+
+    print(f"\n  Clase activo (0):")
+    print(f"    F1           : {metrics['f1_0']:.4f}")
+    print(f"    Precision    : {metrics['precision_0']:.4f}")
+    print(f"    Recall       : {metrics['recall_0']:.4f}")
+    print(f"    Support      : {metrics['support_0']:,}")
+
+    print(f"\n  Precision@K y Recall@K (top-K% por riesgo predicho):")
+    print(HR)
+    print(f"  {'K%':>6}  {'Precision@K':>12}  {'Recall@K':>10}  Interpretación")
+    for k in [5, 10, 20, 30]:
+        p_k = metrics_ext.get(f"precision_at_{k}pct", float("nan"))
+        r_k = metrics_ext.get(f"recall_at_{k}pct", float("nan"))
+        n_k = int(metrics["val_size"] * k / 100)
+        print(f"  {k:>5}%  {p_k:>12.4f}  {r_k:>10.4f}  (top {n_k:,} estudiantes)")
+
+    print(f"\n  ROC-AUC por período de validación:")
+    print(HR)
+    for period, auc_p in metrics_ext.get("auc_by_period", {}).items():
+        barra = "█" * int(auc_p * 30)
+        print(f"  {period:<12}  AUC={auc_p:.4f}  {barra}")
+
+    if "auc_by_carrera" in metrics_ext:
+        print(f"\n  ROC-AUC por carrera (top 15):")
+        print(HR)
+        items = list(metrics_ext["auc_by_carrera"].items())[:15]
+        for carrera, auc_c in items:
+            barra = "█" * int(auc_c * 30)
+            print(f"  {carrera:<20}  AUC={auc_c:.4f}  {barra}")
+
+    print(f"\n{SEP}\n")
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main(version: str):
     set_style()
@@ -453,7 +575,7 @@ def main(version: str):
     print(f"  Prec (cls 1): {report['1']['precision']:.4f}")
     print(f"  Rec  (cls 1): {report['1']['recall']:.4f}")
 
-    # Guardar métricas JSON
+    # Guardar métricas JSON (base)
     metrics = {
         "version": version, "label": VERSION_LABELS[version],
         "run_id": run.info.run_id,
@@ -465,12 +587,33 @@ def main(version: str):
         "f1_macro": report["macro avg"]["f1-score"],
         "f1_weighted": report["weighted avg"]["f1-score"],
         "precision_0": report["0"]["precision"], "recall_0": report["0"]["recall"],
-        "f1_0": report["0"]["f1-score"], "support_0": report["0"]["support"],
+        "f1_0": report["0"]["f1-score"], "support_0": int(report["0"]["support"]),
         "precision_1": report["1"]["precision"], "recall_1": report["1"]["recall"],
-        "f1_1": report["1"]["f1-score"], "support_1": report["1"]["support"],
+        "f1_1": report["1"]["f1-score"], "support_1": int(report["1"]["support"]),
     }
+
+    # Métricas extendidas
+    print("\n3b. Calculando métricas extendidas...")
+    metrics_ext = compute_extended_metrics(y_val, proba, preds, model, X_val, val_periods)
+    metrics.update({
+        "brier_score":       metrics_ext["brier_score"],
+        "average_precision": metrics_ext["average_precision"],
+        "ks_statistic":      metrics_ext["ks_statistic"],
+        "precision_at_10pct": metrics_ext.get("precision_at_10pct"),
+        "recall_at_10pct":    metrics_ext.get("recall_at_10pct"),
+        "precision_at_20pct": metrics_ext.get("precision_at_20pct"),
+        "recall_at_20pct":    metrics_ext.get("recall_at_20pct"),
+    })
+
     with open(os.path.join(THESIS_FIGS_DIR, f"metrics_{version}.json"), "w") as f:
         json.dump(metrics, f, indent=2)
+
+    # Guardar métricas extendidas separadas
+    with open(os.path.join(THESIS_FIGS_DIR, f"metrics_ext_{version}.json"), "w") as f:
+        json.dump(metrics_ext, f, indent=2, default=str)
+
+    # Reporte de texto completo
+    print_text_report(version, metrics, metrics_ext, X_train, X_val, y_val, val_periods)
 
     print("\n4. Generando figuras...")
     plot_roc(y_val, proba, version, THESIS_FIGS_DIR)
@@ -482,6 +625,9 @@ def main(version: str):
 
     print(f"\n{'='*55}")
     print(f"  ROC-AUC      : {roc_auc:.4f}")
+    print(f"  Brier Score  : {metrics_ext['brier_score']:.4f}")
+    print(f"  Avg Precision: {metrics_ext['average_precision']:.4f}")
+    print(f"  KS Stat      : {metrics_ext['ks_statistic']:.4f}")
     print(f"  F1 (abandono): {report['1']['f1-score']:.4f}")
     print(f"  Precision    : {report['1']['precision']:.4f}")
     print(f"  Recall       : {report['1']['recall']:.4f}")
