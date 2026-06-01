@@ -230,6 +230,9 @@ mv = mlflow.register_model(
     model_uri=model_uri,
     name="student_dropout_model",
 )
+# cycle_period definido aquí para que esté disponible en el tagging y en PostgreSQL
+cycle_period = str(df["academic_period"].max())
+
 # ── Tagging automático del run ganador (reemplaza tag_mlflow_run.py) ──────────
 # Derivamos staging_periods desde la BD para no hardcodear.
 try:
@@ -282,9 +285,6 @@ CREATE TABLE IF NOT EXISTS predictions.model_evaluations (
     PRIMARY KEY (cycle_period, model_name)
 )
 """
-
-# Usamos el período más reciente del panel como identificador del ciclo
-cycle_period = str(df["academic_period"].max())
 
 with engine.connect() as conn:
     conn.execute(text(create_schema_sql))
