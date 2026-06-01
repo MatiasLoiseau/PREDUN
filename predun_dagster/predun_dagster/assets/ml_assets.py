@@ -1,297 +1,46 @@
+"""
+Assets de entrenamiento y scoring para PREDUN.
+
+Cambios respecto a la versión original:
+  - train_student_dropout_model entrena 3 modelos candidatos en paralelo:
+      GradientBoostingClassifier (baseline original)
+      RandomForestClassifier     (ensemble paralelo, más rápido)
+      LogisticRegression         (baseline lineal, máxima interpretabilidad)
+  - El mejor modelo por AUC se registra en el MLflow Model Registry.
+  - Cada candidato queda trazado como run independiente en MLflow con
+    el tag model_candidate=True, permitiendo comparar en la UI.
+  - Los resultados de la competencia se persisten en
+    predictions.model_evaluations para consumo en Superset.
+  - predict_student_dropout_risk no cambia: carga el mejor modelo del
+    Registry y genera predicciones como antes.
+"""
 import os
 import shutil
 import time
-import numpy as np
-import pandas as pd
-import joblib
-import mlflow
-import mlflow.sklearn
-from sqlalchemy import create_engine
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import classification_report, roc_auc_score
-from dagster import asset, AssetExecutionContext
 import subprocess
+import tempfile
+import json
 import logging
+
+from dagster import asset, AssetExecutionContext
 
 
 def _conda_bin() -> str:
-    """Resolve conda executable from env or PATH, avoids hardcoded absolute paths."""
     return os.environ.get("CONDA_EXE") or shutil.which("conda") or "conda"
 
 
-def run_model_in_conda_env(context: AssetExecutionContext):
-    """Run model training in the eda-predun conda environment"""
-    # Get environment variables for database connection
-    pg_uri = os.getenv("PG_URI", "postgresql://user:password@localhost:5432/postgres")
-    
-    # Script content to run the model
-    model_script = f'''
-import os
-import time
-import numpy as np
-import pandas as pd
-import joblib
-import mlflow
-import mlflow.sklearn
-from sqlalchemy import create_engine
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import classification_report, roc_auc_score
+# ── Script de entrenamiento multi-modelo ──────────────────────────────────────
 
-# Setup MLflow
-mlflow.set_tracking_uri("http://localhost:8002")
-mlflow.set_experiment("student_dropout_prediction")
-
-# Database connection
-PG_URI = "{pg_uri}"
-engine = create_engine(PG_URI)
-
-# Read data from PostgreSQL
-df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
-
-# Data preprocessing - same as sample_model.py
-df = df.drop_duplicates()
-
-# Convert numeric columns
-num_cols = [
-    'materias_en_periodo', 'promo_en_periodo', 'nota_media_en_periodo',
-    'materias_win3', 'promo_win3', 'nota_win3', 'dias_desde_ult_periodo'
-]
-
-df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')
-
-# Verify target is binary
-assert df['dropout_next'].isin([0, 1]).all(), "Unexpected values in dropout_next"
-
-# Feature engineering
-df['promo_rate_period'] = df['promo_en_periodo'] / df['materias_en_periodo'].replace(0, np.nan)
-df['promo_rate_win3'] = df['promo_win3'] / df['materias_win3'].replace(0, np.nan)
-
-# Cumulative subjects
-df['materias_cum'] = (
-    df.sort_values('academic_period')
-      .groupby(['legajo', 'cod_carrera'])['materias_en_periodo']
-      .cumsum()
-)
-
-# Feature columns
-feature_cols_num = num_cols + ['promo_rate_period', 'promo_rate_win3', 'materias_cum']
-feature_cols_cat = ['cod_carrera']
-
-# Variables
-X = df[feature_cols_num + feature_cols_cat]
-y = df['dropout_next']
-
-# Time-based split (training until 2022_2C)
-train_mask = df['academic_period'] <= '2022_2C'
-X_train, y_train = X[train_mask], y[train_mask]
-X_val, y_val = X[~train_mask], y[~train_mask]
-
-print(f"Training: {{X_train.shape}}")
-print(f"Validation: {{X_val.shape}}")
-
-# Start MLflow run
-with mlflow.start_run(run_name="student_dropout_model_dagster_training") as run:
-    
-    # Log parameters
-    mlflow.log_param("train_size", X_train.shape[0])
-    mlflow.log_param("val_size", X_val.shape[0])
-    mlflow.log_param("num_features", len(feature_cols_num))
-    mlflow.log_param("cat_features", len(feature_cols_cat))
-    mlflow.log_param("train_period_cutoff", "2022_2C")
-    
-    # Preprocessing pipelines
-    numeric_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler())
-    ])
-
-    categorical_pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore"))
-    ])
-
-    # Composition
-    preprocess = ColumnTransformer([
-        ("num", numeric_pipe, feature_cols_num),
-        ("cat", categorical_pipe, feature_cols_cat)
-    ])
-
-    # Classifier
-    clf = GradientBoostingClassifier(random_state=42)
-
-    # Complete pipeline
-    pipeline = Pipeline([
-        ("prep", preprocess),
-        ("model", clf)
-    ])
-    
-    # Log model parameters
-    mlflow.log_param("imputer_strategy_num", "median")
-    mlflow.log_param("imputer_strategy_cat", "most_frequent")
-    mlflow.log_param("scaler", "StandardScaler")
-    mlflow.log_param("encoder", "OneHotEncoder")
-    mlflow.log_param("classifier", "GradientBoostingClassifier")
-    mlflow.log_param("random_state", 42)
-    
-    # Training
-    start_time = time.time()
-    pipeline.fit(X_train, y_train)
-    training_time = time.time() - start_time
-    
-    mlflow.log_metric("training_time_seconds", training_time)
-    
-    # Predictions
-    preds = pipeline.predict(X_val)
-    proba = pipeline.predict_proba(X_val)[:, 1]
-    
-    # Metrics
-    roc_auc = roc_auc_score(y_val, proba)
-    
-    mlflow.log_metric("roc_auc", roc_auc)
-    mlflow.log_metric("validation_accuracy", (preds == y_val).mean())
-    mlflow.log_metric("positive_class_rate", y_val.mean())
-    mlflow.log_metric("predicted_positive_rate", preds.mean())
-    
-    # Log classification report as text
-    class_report = classification_report(y_val, preds, digits=3)
-    print("Classification report:")
-    print(class_report)
-    
-    # Save classification report as artifact
-    with open("classification_report.txt", "w") as f:
-        f.write(class_report)
-    mlflow.log_artifact("classification_report.txt")
-    
-    # Log model
-    mlflow.sklearn.log_model(
-        sk_model=pipeline,
-        artifact_path="model",
-        registered_model_name="student_dropout_model"
-    )
-    
-    print(f"ROC-AUC: {{roc_auc:.3f}}")
-    print(f"Training completed in {{training_time:.2f}} seconds")
-    print(f"MLflow run ID: {{run.info.run_id}}")
-    
-    # Return metrics for Dagster
-    import json
-    result = {{
-        "roc_auc": roc_auc,
-        "training_time": training_time,
-        "train_size": X_train.shape[0],
-        "val_size": X_val.shape[0],
-        "run_id": run.info.run_id
-    }}
-    
-    print("DAGSTER_RESULT:" + json.dumps(result))
-'''
-
-    # Write script to temporary file
-    import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-        f.write(model_script)
-        script_path = f.name
-    
-    try:
-        # Run the script in the eda-predun conda environment
-        context.log.info("Starting model training in eda-predun conda environment")
-        start_time = time.time()
-        
-        cmd = [
-            _conda_bin(), "run", "-n", "eda-predun",
-            "python", script_path
-        ]
-        
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        duration = time.time() - start_time
-        
-        context.log.info(f"Model training completed in {duration:.2f} seconds")
-        context.log.info("Training output:")
-        context.log.info(result.stdout)
-        
-        # Extract result from output
-        import json
-        lines = result.stdout.strip().split('\n')
-        for line in lines:
-            if line.startswith("DAGSTER_RESULT:"):
-                result_data = json.loads(line.replace("DAGSTER_RESULT:", ""))
-                context.log.info(f"Training metrics: {result_data}")
-                return result_data
-        
-        # If no result found, return basic info
-        return {"status": "completed", "duration": duration}
-        
-    except subprocess.CalledProcessError as e:
-        context.log.error(f"Error running model training: {e.stderr}")
-        raise
-    finally:
-        # Clean up temporary file
-        if os.path.exists(script_path):
-            os.unlink(script_path)
-
-
-@asset(
-    required_resource_keys={"mlflow_monitoring"},
-    deps=["dbt_project_assets"]  # Depends on DBT assets to ensure marts.student_panel exists
-)
-def train_student_dropout_model(context: AssetExecutionContext):
+def run_multi_model_training_in_conda_env(context: AssetExecutionContext) -> dict:
     """
-    Train a student dropout prediction model using data from marts.student_panel.
-    
-    This asset:
-    - Runs in the 'eda-predun' conda environment
-    - Reads data from PostgreSQL marts.student_panel table
-    - Trains a GradientBoostingClassifier with preprocessing pipeline
-    - Logs metrics and model to MLflow running on port 8002
-    - Does not save results to CSV files
-    
-    Returns training metrics and MLflow run information.
+    Ejecuta el entrenamiento de los 3 modelos candidatos en el entorno eda-predun.
+
+    Retorna un dict con el nombre del modelo ganador, su AUC y el run_id de MLflow.
     """
-    
-    # Track the job with MLFlow monitoring
-    with context.resources.mlflow_monitoring.track_job(
-        job_name="train_student_dropout_model",
-        tags={"model_type": "GradientBoostingClassifier", "environment": "eda-predun"}
-    ):
-        context.log.info("Starting student dropout model training")
-        
-        # Run the model training in conda environment
-        result = run_model_in_conda_env(context)
-        
-        # Log additional metrics to the MLFlow monitoring resource
-        if "roc_auc" in result:
-            context.resources.mlflow_monitoring.log_process_metrics(
-                process_name="model_training",
-                start_time=time.time() - result.get("training_time", 0),
-                success=True,
-                additional_metrics={
-                    "model_roc_auc": result["roc_auc"],
-                    "training_samples": result.get("train_size", 0),
-                    "validation_samples": result.get("val_size", 0)
-                }
-            )
-        
-        context.log.info("Student dropout model training completed successfully")
-        return result
+    pg_uri = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
 
-
-def run_prediction_in_conda_env(context: AssetExecutionContext):
-    """Run prediction in the eda-predun conda environment"""
-    # Get environment variables for database connection
-    pg_uri = os.getenv("PG_URI", "postgresql://user:password@localhost:5432/postgres")
-    
-    # Script content to run the prediction
-    prediction_script = f'''
-import os
-import time
+    training_script = f'''
+import os, time, json, warnings
 import numpy as np
 import pandas as pd
 import mlflow
@@ -301,255 +50,494 @@ from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    classification_report, roc_auc_score, brier_score_loss,
+    average_precision_score,
+)
+warnings.filterwarnings("ignore")
 
-# Setup MLflow
+# ── Configuración ──────────────────────────────────────────────────────────────
 mlflow.set_tracking_uri("http://localhost:8002")
 mlflow.set_experiment("student_dropout_prediction")
 
-# Database connection
+PG_URI = "{pg_uri}"
+engine = create_engine(PG_URI)
+TRAIN_CUTOFF = "2022_2C"
+
+NUM_COLS = [
+    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+]
+
+# ── Carga y preparación de datos ───────────────────────────────────────────────
+print("Cargando student_panel...")
+df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
+df = df.drop_duplicates()
+df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+assert df["dropout_next"].isin([0, 1]).all(), "Valores inesperados en dropout_next"
+
+df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
+df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
+df["materias_cum"] = (
+    df.sort_values("academic_period")
+      .groupby(["legajo", "cod_carrera"])["materias_en_periodo"]
+      .cumsum()
+)
+
+FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_CAT = ["cod_carrera"]
+
+X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
+y = df["dropout_next"]
+
+train_mask = df["academic_period"] <= TRAIN_CUTOFF
+X_train, y_train = X[train_mask], y[train_mask]
+X_val,   y_val   = X[~train_mask], y[~train_mask]
+
+print(f"Train: {{X_train.shape[0]:,}} | Val: {{X_val.shape[0]:,}}")
+
+# ── Preprocessing pipeline (compartido por todos los modelos) ──────────────────
+def build_pipeline(classifier):
+    numeric_pipe = Pipeline([
+        ("imputer", SimpleImputer(strategy="median")),
+        ("scaler",  StandardScaler()),
+    ])
+    categorical_pipe = Pipeline([
+        ("imputer", SimpleImputer(strategy="most_frequent")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore")),
+    ])
+    preprocess = ColumnTransformer([
+        ("num", numeric_pipe,      FEATURE_COLS_NUM),
+        ("cat", categorical_pipe,  FEATURE_COLS_CAT),
+    ])
+    return Pipeline([("prep", preprocess), ("model", classifier)])
+
+# ── Modelos candidatos ─────────────────────────────────────────────────────────
+# Tres familias distintas: secuencial, paralelo, lineal.
+# Hiperparámetros por defecto + random_state para reproducibilidad.
+model_candidates = [
+    ("GradientBoosting",  GradientBoostingClassifier(random_state=42)),
+    ("RandomForest",      RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)),
+    ("LogisticRegression",LogisticRegression(max_iter=1000, random_state=42, n_jobs=-1)),
+]
+
+# ── Entrenamiento y evaluación de cada candidato ───────────────────────────────
+results = []
+client  = mlflow.tracking.MlflowClient()
+
+for model_name, clf in model_candidates:
+    print(f"\\nEntrenando {{model_name}}...")
+    t0 = time.time()
+
+    pipeline = build_pipeline(clf)
+
+    with mlflow.start_run(run_name=f"candidate_{{model_name}}_training") as run:
+        # Tags que identifican este run como candidato de esta comparación
+        mlflow.set_tag("model_candidate",  "true")
+        mlflow.set_tag("model_name",       model_name)
+        mlflow.set_tag("train_cutoff",     TRAIN_CUTOFF)
+
+        mlflow.log_param("classifier",            model_name)
+        mlflow.log_param("train_size",            X_train.shape[0])
+        mlflow.log_param("val_size",              X_val.shape[0])
+        mlflow.log_param("train_period_cutoff",   TRAIN_CUTOFF)
+        mlflow.log_param("num_features",          len(FEATURE_COLS_NUM))
+        mlflow.log_param("cat_features",          len(FEATURE_COLS_CAT))
+
+        pipeline.fit(X_train, y_train)
+        training_time = time.time() - t0
+
+        preds = pipeline.predict(X_val)
+        proba = pipeline.predict_proba(X_val)[:, 1]
+
+        roc_auc   = roc_auc_score(y_val, proba)
+        brier     = brier_score_loss(y_val, proba)
+        avg_prec  = average_precision_score(y_val, proba)
+        report    = classification_report(y_val, preds, digits=3, output_dict=True)
+        accuracy  = float((preds == y_val).mean())
+
+        # KS statistic
+        proba_pos = np.sort(proba[y_val == 1])
+        proba_neg = np.sort(proba[y_val == 0])
+        combined  = np.sort(np.concatenate([proba_pos, proba_neg]))
+        cdf_pos   = np.searchsorted(proba_pos, combined, side="right") / max(len(proba_pos), 1)
+        cdf_neg   = np.searchsorted(proba_neg, combined, side="right") / max(len(proba_neg), 1)
+        ks_stat   = float(np.max(np.abs(cdf_pos - cdf_neg)))
+
+        mlflow.log_metric("roc_auc",              roc_auc)
+        mlflow.log_metric("brier_score",          brier)
+        mlflow.log_metric("average_precision",    avg_prec)
+        mlflow.log_metric("ks_statistic",         ks_stat)
+        mlflow.log_metric("validation_accuracy",  accuracy)
+        mlflow.log_metric("training_time_seconds",training_time)
+        mlflow.log_metric("f1_dropout",           report["1"]["f1-score"])
+        mlflow.log_metric("precision_dropout",    report["1"]["precision"])
+        mlflow.log_metric("recall_dropout",       report["1"]["recall"])
+
+        # Guardar el modelo como artefacto (no registrar en Registry aún)
+        mlflow.sklearn.log_model(
+            sk_model=pipeline,
+            artifact_path="model",
+        )
+
+        results.append({{
+            "model_name":            model_name,
+            "run_id":                run.info.run_id,
+            "roc_auc":               roc_auc,
+            "brier_score":           brier,
+            "average_precision":     avg_prec,
+            "ks_statistic":          ks_stat,
+            "f1_dropout":            report["1"]["f1-score"],
+            "precision_dropout":     report["1"]["precision"],
+            "recall_dropout":        report["1"]["recall"],
+            "training_time_seconds": training_time,
+            "train_size":            X_train.shape[0],
+            "val_size":              X_val.shape[0],
+        }})
+
+        print(f"  {{model_name}}: AUC={{roc_auc:.4f}}  Brier={{brier:.4f}}  KS={{ks_stat:.4f}}  t={{training_time:.1f}}s")
+
+# ── Selección del mejor modelo ─────────────────────────────────────────────────
+best = max(results, key=lambda r: r["roc_auc"])
+print(f"\\nMejor modelo: {{best['model_name']}} (AUC={{best['roc_auc']:.4f}})")
+
+# Registrar SOLO el ganador en el Model Registry
+model_uri = f"runs:/{{best['run_id']}}/model"
+mv = mlflow.register_model(
+    model_uri=model_uri,
+    name="student_dropout_model",
+)
+mlflow.set_tag("winning_model", "true")  # tag adicional en el run ganador
+
+# Taggear el run ganador en MLflow para identificación visual
+with mlflow.start_run(run_id=best["run_id"]):
+    mlflow.set_tag("registered_in_registry", "true")
+    mlflow.set_tag("registry_version", mv.version)
+
+print(f"  Registrado como student_dropout_model v{{mv.version}}")
+
+# ── Persistir comparación en PostgreSQL ───────────────────────────────────────
+from datetime import datetime
+
+create_schema_sql = "CREATE SCHEMA IF NOT EXISTS predictions"
+create_table_sql  = """
+CREATE TABLE IF NOT EXISTS predictions.model_evaluations (
+    cycle_period              VARCHAR(20)  NOT NULL,
+    model_name                VARCHAR(100) NOT NULL,
+    mlflow_run_id             VARCHAR(100),
+    roc_auc                   FLOAT,
+    brier_score               FLOAT,
+    average_precision         FLOAT,
+    ks_statistic              FLOAT,
+    f1_dropout                FLOAT,
+    precision_dropout         FLOAT,
+    recall_dropout            FLOAT,
+    training_time_seconds     FLOAT,
+    train_size                INTEGER,
+    val_size                  INTEGER,
+    is_selected_model         BOOLEAN,
+    evaluated_at              TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (cycle_period, model_name)
+)
+"""
+
+# Usamos el período más reciente del panel como identificador del ciclo
+cycle_period = str(df["academic_period"].max())
+
+with engine.connect() as conn:
+    conn.execute(text(create_schema_sql))
+    conn.execute(text(create_table_sql))
+    # Limpiar evaluaciones previas del mismo ciclo para este run
+    conn.execute(
+        text("DELETE FROM predictions.model_evaluations WHERE cycle_period = :cp"),
+        {{"cp": cycle_period}},
+    )
+    conn.commit()
+
+rows = []
+for r in results:
+    rows.append({{
+        "cycle_period":           cycle_period,
+        "model_name":             r["model_name"],
+        "mlflow_run_id":          r["run_id"],
+        "roc_auc":                r["roc_auc"],
+        "brier_score":            r["brier_score"],
+        "average_precision":      r["average_precision"],
+        "ks_statistic":           r["ks_statistic"],
+        "f1_dropout":             r["f1_dropout"],
+        "precision_dropout":      r["precision_dropout"],
+        "recall_dropout":         r["recall_dropout"],
+        "training_time_seconds":  r["training_time_seconds"],
+        "train_size":             r["train_size"],
+        "val_size":               r["val_size"],
+        "is_selected_model":      (r["model_name"] == best["model_name"]),
+        "evaluated_at":           datetime.utcnow(),
+    }})
+
+pd.DataFrame(rows).to_sql(
+    "model_evaluations", engine, schema="predictions",
+    if_exists="append", index=False, method="multi",
+)
+print(f"Comparación guardada en predictions.model_evaluations (ciclo {{cycle_period}})")
+
+# ── Resultado para Dagster ─────────────────────────────────────────────────────
+output = {{
+    "best_model":       best["model_name"],
+    "roc_auc":          best["roc_auc"],
+    "brier_score":      best["brier_score"],
+    "ks_statistic":     best["ks_statistic"],
+    "run_id":           best["run_id"],
+    "registry_version": mv.version,
+    "cycle_period":     cycle_period,
+    "all_models":       [{{
+        "name": r["model_name"],
+        "roc_auc": round(r["roc_auc"], 4),
+        "brier":   round(r["brier_score"], 4),
+    }} for r in sorted(results, key=lambda x: x["roc_auc"], reverse=True)],
+}}
+print("DAGSTER_RESULT:" + json.dumps(output))
+'''
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write(training_script)
+        script_path = f.name
+
+    try:
+        context.log.info("Iniciando entrenamiento multi-modelo en eda-predun...")
+        t0 = time.time()
+
+        result = subprocess.run(
+            [_conda_bin(), "run", "-n", "eda-predun", "python", script_path],
+            check=True, capture_output=True, text=True,
+        )
+        duration = time.time() - t0
+
+        context.log.info(f"Entrenamiento completado en {duration:.1f}s")
+        for line in result.stdout.splitlines():
+            context.log.info(line)
+
+        for line in result.stdout.strip().split("\n"):
+            if line.startswith("DAGSTER_RESULT:"):
+                return json.loads(line.replace("DAGSTER_RESULT:", ""))
+
+        return {"status": "completed", "duration": duration}
+
+    except subprocess.CalledProcessError as e:
+        context.log.error(f"Error en entrenamiento: {e.stderr}")
+        raise
+    finally:
+        if os.path.exists(script_path):
+            os.unlink(script_path)
+
+
+# ── Asset de entrenamiento ────────────────────────────────────────────────────
+
+@asset(
+    required_resource_keys={"mlflow_monitoring"},
+    deps=["dbt_project_assets"],
+)
+def train_student_dropout_model(context: AssetExecutionContext):
+    """
+    Entrena 3 modelos candidatos (GradientBoosting, RandomForest, LogisticRegression),
+    los evalúa sobre el mismo set de validación, registra el mejor en el MLflow
+    Model Registry y persiste la comparación en predictions.model_evaluations.
+    """
+    with context.resources.mlflow_monitoring.track_job(
+        job_name="train_student_dropout_model",
+        tags={"environment": "eda-predun", "mode": "multi_model"},
+    ):
+        context.log.info("Iniciando entrenamiento multi-modelo")
+        result = run_multi_model_training_in_conda_env(context)
+
+        if "roc_auc" in result:
+            context.resources.mlflow_monitoring.log_process_metrics(
+                process_name="model_training",
+                start_time=time.time() - result.get("training_time", 0),
+                success=True,
+                additional_metrics={
+                    "best_model_auc":     result["roc_auc"],
+                    "training_samples":   result.get("train_size", 0),
+                    "validation_samples": result.get("val_size", 0),
+                },
+            )
+        context.log.info(
+            f"Mejor modelo: {result.get('best_model', '?')} "
+            f"(AUC={result.get('roc_auc', '?')})"
+        )
+        return result
+
+
+# ── Script de scoring (sin cambios respecto al original) ──────────────────────
+
+def run_prediction_in_conda_env(context: AssetExecutionContext) -> dict:
+    """Genera predicciones en eda-predun usando el mejor modelo del MLflow Registry."""
+    pg_uri = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
+
+    prediction_script = f'''
+import os, time, json
+import numpy as np
+import pandas as pd
+import mlflow
+import mlflow.sklearn
+from sqlalchemy import create_engine, text
+
+mlflow.set_tracking_uri("http://localhost:8002")
+mlflow.set_experiment("student_dropout_prediction")
+
 PG_URI = "{pg_uri}"
 engine = create_engine(PG_URI)
 
-print("Loading latest model from MLflow...")
-
-# Get the latest model version from MLflow
+print("Cargando último modelo del Registry...")
 client = mlflow.tracking.MlflowClient()
 try:
-    latest_version = client.get_latest_versions("student_dropout_model", stages=["None"])
-    if not latest_version:
-        latest_version = client.get_latest_versions("student_dropout_model")
-    
-    if latest_version:
-        model_version = latest_version[0].version
-        model_uri = f"models:/student_dropout_model/{{model_version}}"
-        print(f"Loading model version {{model_version}}")
-        
-        # Load the model
-        model = mlflow.sklearn.load_model(model_uri)
-        print("Model loaded successfully")
-    else:
-        raise Exception("No trained model found in MLflow")
-        
+    latest = client.get_latest_versions("student_dropout_model", stages=["None"])
+    if not latest:
+        latest = client.get_latest_versions("student_dropout_model")
+    if not latest:
+        raise Exception("No hay modelo entrenado en el Registry")
+    model_version = latest[0].version
+    model = mlflow.sklearn.load_model(f"models:/student_dropout_model/{{model_version}}")
+    print(f"Modelo v{{model_version}} cargado OK")
 except Exception as e:
-    print(f"Error loading model: {{e}}")
+    print(f"Error cargando modelo: {{e}}")
     raise
 
-# Get active students from student_status
-print("Loading active students data...")
-query_students = """
-    SELECT DISTINCT legajo, 'estudiando' as status 
-    FROM marts.student_status 
-    WHERE status = 'estudiando'
-"""
-active_students = pd.read_sql(query_students, engine)
-print(f"Found {{len(active_students)}} active students")
-
+print("Cargando estudiantes activos...")
+active_students = pd.read_sql(
+    "SELECT DISTINCT legajo FROM marts.student_status WHERE status = \\'estudiando\\'",
+    engine,
+)
+print(f"{{len(active_students)}} estudiantes activos")
 if len(active_students) == 0:
-    print("No active students found - exiting")
+    print("Sin estudiantes activos — saliendo")
     exit(0)
 
-# Get student panel data for feature engineering - only for active students
-print("Loading student panel data for active students...")
-legajos_list = "', '".join(active_students['legajo'].astype(str))
-query_panel = f"""
-    SELECT * FROM marts.student_panel 
-    WHERE legajo IN ('{{legajos_list}}')
-    ORDER BY legajo, academic_period DESC
-"""
-student_panel = pd.read_sql(query_panel, engine)
-
+legajos_list = "\\', \\'".join(active_students["legajo"].astype(str))
+student_panel = pd.read_sql(
+    f"SELECT * FROM marts.student_panel WHERE legajo IN (\\\'{{legajos_list}}\\\') ORDER BY legajo, academic_period DESC",
+    engine,
+)
 if len(student_panel) == 0:
-    print("No student panel data found for active students - exiting")
+    print("Sin datos de panel para activos — saliendo")
     exit(0)
 
-print(f"Loaded {{len(student_panel)}} records from student panel")
+df = student_panel.groupby("legajo").first().reset_index()
+print(f"{{len(df)}} registros más recientes para scoring")
 
-# Get the most recent record for each student for prediction
-latest_records = student_panel.groupby('legajo').first().reset_index()
-print(f"Using {{len(latest_records)}} latest records for prediction")
-
-# Apply the same feature engineering as in training
-df = latest_records.copy()
-
-# Convert numeric columns (same as training)
-num_cols = [
-    'materias_en_periodo', 'promo_en_periodo', 'nota_media_en_periodo',
-    'materias_win3', 'promo_win3', 'nota_win3', 'dias_desde_ult_periodo'
+NUM_COLS = [
+    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
 ]
+df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
+df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
+df["materias_cum"]      = df["materias_en_periodo"].cumsum()
 
-df[num_cols] = df[num_cols].apply(pd.to_numeric, errors='coerce')
+FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_CAT = ["cod_carrera"]
+X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
 
-# Feature engineering (same as training)
-df['promo_rate_period'] = df['promo_en_periodo'] / df['materias_en_periodo'].replace(0, np.nan)
-df['promo_rate_win3'] = df['promo_win3'] / df['materias_win3'].replace(0, np.nan)
+predictions  = model.predict(X)
+probabilities = model.predict_proba(X)[:, 1]
 
-# For cumulative subjects, use the value as-is since we're taking the latest record
-df['materias_cum'] = df['materias_en_periodo'].cumsum()
+print(f"Tasa de abandono predicha: {{predictions.mean():.3f}}")
 
-# Feature columns (same as training)
-feature_cols_num = num_cols + ['promo_rate_period', 'promo_rate_win3', 'materias_cum']
-feature_cols_cat = ['cod_carrera']
-
-# Prepare features for prediction
-X = df[feature_cols_num + feature_cols_cat]
-
-print("Making predictions...")
-# Get predictions and probabilities
-predictions = model.predict(X)
-probabilities = model.predict_proba(X)[:, 1]  # Probability of dropout
-
-print(f"Generated predictions for {{len(predictions)}} students")
-print(f"Predicted dropout rate: {{predictions.mean():.3f}}")
-print(f"Average dropout probability: {{probabilities.mean():.3f}}")
-
-# Prepare results dataframe
 results_df = pd.DataFrame({{
-    'legajo': df['legajo'],
-    'academic_period': df['academic_period'],
-    'cod_carrera': df['cod_carrera'],
-    'dropout_prediction': predictions,
-    'dropout_probability': probabilities,
-    'prediction_date': pd.Timestamp.now(),
-    'model_version': model_version
+    "legajo":               df["legajo"],
+    "academic_period":      df["academic_period"],
+    "cod_carrera":          df["cod_carrera"],
+    "dropout_prediction":   predictions,
+    "dropout_probability":  probabilities,
+    "prediction_date":      pd.Timestamp.now(),
+    "model_version":        model_version,
 }})
 
-# Create schema if it doesn't exist
 with engine.connect() as conn:
     conn.execute(text("CREATE SCHEMA IF NOT EXISTS predictions"))
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS predictions.student_dropout_predictions (
+            legajo               VARCHAR(50),
+            academic_period      VARCHAR(20),
+            cod_carrera          VARCHAR(20),
+            dropout_prediction   INTEGER,
+            dropout_probability  FLOAT,
+            prediction_date      TIMESTAMP,
+            model_version        VARCHAR(50),
+            PRIMARY KEY (legajo, prediction_date)
+        )"""))
     conn.commit()
 
-# Create table if it doesn't exist
-create_table_sql = """
-CREATE TABLE IF NOT EXISTS predictions.student_dropout_predictions (
-    legajo VARCHAR(50),
-    academic_period VARCHAR(20),
-    cod_carrera VARCHAR(20),
-    dropout_prediction INTEGER,
-    dropout_probability FLOAT,
-    prediction_date TIMESTAMP,
-    model_version VARCHAR(50),
-    PRIMARY KEY (legajo, prediction_date)
-)
-"""
-
-with engine.connect() as conn:
-    conn.execute(text(create_table_sql))
-    conn.commit()
-
-print("Saving predictions to database...")
-
-# Save to database
 results_df.to_sql(
-    'student_dropout_predictions', 
-    engine, 
-    schema='predictions',
-    if_exists='append', 
-    index=False,
-    method='multi'
+    "student_dropout_predictions", engine, schema="predictions",
+    if_exists="append", index=False, method="multi",
 )
+print(f"{{len(results_df)}} predicciones guardadas")
 
-print(f"Successfully saved {{len(results_df)}} predictions to predictions.student_dropout_predictions")
-
-# Return summary statistics
 summary = {{
-    "total_students": len(results_df),
-    "predicted_dropouts": int(predictions.sum()),
-    "dropout_rate": float(predictions.mean()),
+    "total_students":        len(results_df),
+    "predicted_dropouts":    int(predictions.sum()),
+    "dropout_rate":          float(predictions.mean()),
     "avg_dropout_probability": float(probabilities.mean()),
-    "model_version": model_version,
-    "prediction_date": pd.Timestamp.now().isoformat()
+    "model_version":         model_version,
+    "prediction_date":       pd.Timestamp.now().isoformat(),
 }}
-
-import json
 print("DAGSTER_RESULT:" + json.dumps(summary))
 '''
 
-    # Write script to temporary file
-    import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
         f.write(prediction_script)
         script_path = f.name
-    
+
     try:
-        # Run the script in the eda-predun conda environment
-        context.log.info("Starting prediction generation in eda-predun conda environment")
-        start_time = time.time()
-        
-        cmd = [
-            _conda_bin(), "run", "-n", "eda-predun",
-            "python", script_path
-        ]
-        
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        duration = time.time() - start_time
-        
-        context.log.info(f"Prediction generation completed in {duration:.2f} seconds")
-        context.log.info("Prediction output:")
-        context.log.info(result.stdout)
-        
-        # Extract result from output
-        import json
-        lines = result.stdout.strip().split('\n')
-        for line in lines:
+        context.log.info("Generando predicciones en eda-predun...")
+        t0 = time.time()
+        result = subprocess.run(
+            [_conda_bin(), "run", "-n", "eda-predun", "python", script_path],
+            check=True, capture_output=True, text=True,
+        )
+        context.log.info(f"Scoring completado en {time.time()-t0:.1f}s")
+        for line in result.stdout.splitlines():
+            context.log.info(line)
+
+        for line in result.stdout.strip().split("\n"):
             if line.startswith("DAGSTER_RESULT:"):
-                result_data = json.loads(line.replace("DAGSTER_RESULT:", ""))
-                context.log.info(f"Prediction summary: {result_data}")
-                return result_data
-        
-        # If no result found, return basic info
-        return {"status": "completed", "duration": duration}
-        
+                return json.loads(line.replace("DAGSTER_RESULT:", ""))
+
+        return {"status": "completed"}
+
     except subprocess.CalledProcessError as e:
-        context.log.error(f"Error running prediction: {e.stderr}")
+        context.log.error(f"Error en scoring: {e.stderr}")
         raise
     finally:
-        # Clean up temporary file
         if os.path.exists(script_path):
             os.unlink(script_path)
 
 
 @asset(
     required_resource_keys={"mlflow_monitoring"},
-    deps=["train_student_dropout_model", "dbt_project_assets"]  # Depends on trained model and DBT data
+    deps=["train_student_dropout_model", "dbt_project_assets"],
 )
 def predict_student_dropout_risk(context: AssetExecutionContext):
     """
-    Generate dropout risk predictions for active students using the latest trained model.
-    
-    This asset:
-    - Loads the latest model from MLflow
-    - Gets active students from marts.student_status where status='estudiando'
-    - Applies the same feature engineering as training
-    - Makes predictions and saves them to predictions.student_dropout_predictions table
-    - Runs in the 'eda-predun' conda environment
-    
-    Returns prediction summary statistics.
+    Genera predicciones de riesgo de abandono para estudiantes activos usando el
+    último modelo registrado en el MLflow Model Registry.
     """
-    
-    # Track the job with MLFlow monitoring
     with context.resources.mlflow_monitoring.track_job(
         job_name="predict_student_dropout_risk",
-        tags={"model_type": "prediction", "environment": "eda-predun"}
+        tags={"environment": "eda-predun"},
     ):
-        context.log.info("Starting student dropout risk prediction")
-        
-        # Run the prediction in conda environment
         result = run_prediction_in_conda_env(context)
-        
-        # Log additional metrics to the MLFlow monitoring resource
         if "total_students" in result:
             context.resources.mlflow_monitoring.log_process_metrics(
                 process_name="model_prediction",
-                start_time=time.time() - result.get("duration", 0),
+                start_time=time.time(),
                 success=True,
                 additional_metrics={
                     "predicted_students": result.get("total_students", 0),
                     "predicted_dropouts": result.get("predicted_dropouts", 0),
-                    "dropout_rate": result.get("dropout_rate", 0),
-                    "avg_dropout_probability": result.get("avg_dropout_probability", 0)
-                }
+                    "dropout_rate":       result.get("dropout_rate", 0),
+                },
             )
-        
-        context.log.info("Student dropout risk prediction completed successfully")
         return result

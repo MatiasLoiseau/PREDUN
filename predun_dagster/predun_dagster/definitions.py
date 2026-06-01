@@ -5,6 +5,7 @@ import datetime
 
 from .assets import (
     dbt_project_assets,
+    detect_data_drift,
     train_student_dropout_model,
     predict_student_dropout_risk,
     format_history_data,
@@ -14,7 +15,7 @@ from .assets import (
 )
 from .resources import PostgresResource, MLflowResource
 from .monitoring import MLFlowMonitoringResource
-from .jobs import refresh_canonical, complete_ml_pipeline
+from .jobs import refresh_canonical, complete_ml_pipeline, drift_job, full_cycle_job
 from .jobs_ingestion import format_data_job, ingest_to_staging_job
 from .sensors import new_period_sensor
 from .constants import PG_URI_ENV, DBT_PROJECT_DIR, DBT_PROFILES_DIR
@@ -56,6 +57,7 @@ dbt_resource = DbtCliResource(
 defs = Definitions(
     assets=[
         dbt_project_assets,
+        detect_data_drift,
         train_student_dropout_model,
         predict_student_dropout_risk,
         format_history_data,
@@ -70,8 +72,10 @@ defs = Definitions(
         "mlflow_monitoring": mlflow_monitoring,
     },
     jobs=[
-        refresh_canonical, 
-        complete_ml_pipeline, 
+        refresh_canonical,
+        complete_ml_pipeline,
+        drift_job,
+        full_cycle_job,
         format_data_job,
         ingest_to_staging_job,
     ],
