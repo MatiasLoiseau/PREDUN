@@ -96,6 +96,20 @@ train_mask = df["academic_period"] <= TRAIN_CUTOFF
 X_train, y_train = X[train_mask], y[train_mask]
 X_val,   y_val   = X[~train_mask], y[~train_mask]
 
+# ── Subsampleo del training para desarrollo/pruebas ───────────────────────────
+# Con 1.4M filas el entrenamiento es muy lento. Para pruebas usamos el 15%
+# estratificado (≈210K filas), suficiente para comparar modelos.
+# TODO: quitar TRAIN_SAMPLE_FRAC (ponerlo en 1.0) para el run final de la tesis.
+TRAIN_SAMPLE_FRAC = 0.15
+if TRAIN_SAMPLE_FRAC < 1.0:
+    X_train, _, y_train, _ = __import__("sklearn.model_selection", fromlist=["train_test_split"]).train_test_split(
+        X_train, y_train,
+        train_size=TRAIN_SAMPLE_FRAC,
+        stratify=y_train,
+        random_state=42,
+    )
+    print(f"Subsampleo aplicado ({TRAIN_SAMPLE_FRAC:.0%}): {{X_train.shape[0]:,}} filas de entrenamiento")
+
 print(f"Train: {{X_train.shape[0]:,}} | Val: {{X_val.shape[0]:,}}")
 
 # ── Preprocessing pipeline (compartido por todos los modelos) ──────────────────
@@ -115,12 +129,15 @@ def build_pipeline(classifier):
     return Pipeline([("prep", preprocess), ("model", classifier)])
 
 # ── Modelos candidatos ─────────────────────────────────────────────────────────
-# Tres familias distintas: secuencial, paralelo, lineal.
-# Hiperparámetros por defecto + random_state para reproducibilidad.
+# Parámetros reducidos para desarrollo. Para el run final de la tesis,
+# aumentar n_estimators a 100/200 y quitar max_depth.
 model_candidates = [
-    ("GradientBoosting",  GradientBoostingClassifier(random_state=42)),
-    ("RandomForest",      RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1)),
-    ("LogisticRegression",LogisticRegression(max_iter=1000, random_state=42, n_jobs=-1)),
+    ("GradientBoosting",   GradientBoostingClassifier(
+        n_estimators=30, max_depth=3, subsample=0.8, random_state=42)),
+    ("RandomForest",       RandomForestClassifier(
+        n_estimators=30, max_depth=8, random_state=42, n_jobs=-1)),
+    ("LogisticRegression", LogisticRegression(
+        max_iter=300, solver="saga", random_state=42, n_jobs=-1)),
 ]
 
 # ── Entrenamiento y evaluación de cada candidato ───────────────────────────────
