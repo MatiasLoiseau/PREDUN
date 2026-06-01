@@ -43,6 +43,7 @@ def run_multi_model_training_in_conda_env(context: AssetExecutionContext) -> dic
 import os, time, json, warnings
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 import mlflow
 import mlflow.sklearn
 from sqlalchemy import create_engine, text
@@ -102,13 +103,13 @@ X_val,   y_val   = X[~train_mask], y[~train_mask]
 # TODO: quitar TRAIN_SAMPLE_FRAC (ponerlo en 1.0) para el run final de la tesis.
 TRAIN_SAMPLE_FRAC = 0.15
 if TRAIN_SAMPLE_FRAC < 1.0:
-    X_train, _, y_train, _ = __import__("sklearn.model_selection", fromlist=["train_test_split"]).train_test_split(
+    X_train, _, y_train, _ = train_test_split(
         X_train, y_train,
         train_size=TRAIN_SAMPLE_FRAC,
         stratify=y_train,
         random_state=42,
     )
-    print(f"Subsampleo aplicado ({TRAIN_SAMPLE_FRAC:.0%}): {{X_train.shape[0]:,}} filas de entrenamiento")
+    print(f"Subsampleo aplicado ({{TRAIN_SAMPLE_FRAC:.0%}}): {{X_train.shape[0]:,}} filas de entrenamiento")
 
 print(f"Train: {{X_train.shape[0]:,}} | Val: {{X_val.shape[0]:,}}")
 
