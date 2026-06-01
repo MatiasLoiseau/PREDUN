@@ -30,9 +30,8 @@ from ..drift_utils import (
     drift_summary,
 )
 
-# Features derivadas que también deben analizarse (se calculan a partir del panel)
-DERIVED_FEATURES_NUM = ["promo_rate_period", "promo_rate_win3"]
-ALL_FEATURES_NUM = FEATURES_NUM + DERIVED_FEATURES_NUM
+# promo_rate_period y promo_rate_win3 ya están incluidas en FEATURES_NUM de drift_utils
+ALL_FEATURES_NUM = FEATURES_NUM
 
 DRIFT_EXPERIMENT = "drift_monitoring"
 

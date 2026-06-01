@@ -209,12 +209,10 @@ mv = mlflow.register_model(
     model_uri=model_uri,
     name="student_dropout_model",
 )
-mlflow.set_tag("winning_model", "true")  # tag adicional en el run ganador
-
-# Taggear el run ganador en MLflow para identificación visual
-with mlflow.start_run(run_id=best["run_id"]):
-    mlflow.set_tag("registered_in_registry", "true")
-    mlflow.set_tag("registry_version", mv.version)
+# Taggear el run ganador sin reabrirlo — client.set_tag() opera sobre runs cerrados
+client.set_tag(best["run_id"], "winning_model", "true")
+client.set_tag(best["run_id"], "registered_in_registry", "true")
+client.set_tag(best["run_id"], "registry_version", str(mv.version))
 
 print(f"  Registrado como student_dropout_model v{{mv.version}}")
 
