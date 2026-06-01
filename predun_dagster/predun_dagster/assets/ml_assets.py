@@ -227,12 +227,33 @@ mv = mlflow.register_model(
     model_uri=model_uri,
     name="student_dropout_model",
 )
-# Taggear el run ganador sin reabrirlo — client.set_tag() opera sobre runs cerrados
-client.set_tag(best["run_id"], "winning_model", "true")
-client.set_tag(best["run_id"], "registered_in_registry", "true")
-client.set_tag(best["run_id"], "registry_version", str(mv.version))
+# ── Tagging automático del run ganador (reemplaza tag_mlflow_run.py) ──────────
+# Derivamos staging_periods desde la BD para no hardcodear.
+try:
+    sp_df = pd.read_sql(
+        "SELECT DISTINCT academic_period FROM staging.cursada_historica_raw ORDER BY 1",
+        engine,
+    )
+    staging_periods = sp_df["academic_period"].tolist()
+except Exception:
+    staging_periods = [cycle_period]
+
+version_label = f"v{{mv.version}} — datos hasta {{cycle_period.replace('_', '-')}}"
+
+client.set_tag(best["run_id"], "winning_model",         "true")
+client.set_tag(best["run_id"], "registered_in_registry","true")
+client.set_tag(best["run_id"], "registry_version",      str(mv.version))
+client.set_tag(best["run_id"], "data_version",          cycle_period)
+client.set_tag(best["run_id"], "thesis_run",            "true")
+client.set_tag(best["run_id"], "staging_periods",       ",".join(staging_periods))
+client.set_tag(best["run_id"], "n_staging_periods",     str(len(staging_periods)))
+client.set_tag(best["run_id"], "version_label",         version_label)
+
+client.set_model_version_tag("student_dropout_model", str(mv.version), "data_version", cycle_period)
+client.set_model_version_tag("student_dropout_model", str(mv.version), "thesis_run",   "true")
 
 print(f"  Registrado como student_dropout_model v{{mv.version}}")
+print(f"  Tags automáticos: data_version={{cycle_period}}, staging_periods={{staging_periods}}")
 
 # ── Persistir comparación en PostgreSQL ───────────────────────────────────────
 from datetime import datetime
