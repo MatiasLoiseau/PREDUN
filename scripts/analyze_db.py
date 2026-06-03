@@ -221,14 +221,14 @@ def analyze_student_status(engine):
         grad = pd.read_sql(
             """
             SELECT
-                ss.cod_carrera,
-                COUNT(*) AS graduados,
+                pa.cod_carrera,
+                COUNT(DISTINCT ss.legajo) AS graduados,
                 AVG(CAST(REPLACE(pa.porcentaje_avance, ',', '.') AS NUMERIC)) AS avance_promedio
             FROM marts.student_status ss
             LEFT JOIN canonical.porcentaje_avance pa USING (legajo)
             WHERE ss.status = 'graduado'
               AND (pa.porcentaje_avance IS NULL OR pa.porcentaje_avance ~ '^[0-9,\\.]+$')
-            GROUP BY ss.cod_carrera
+            GROUP BY pa.cod_carrera
             ORDER BY graduados DESC
             LIMIT 15
             """,
