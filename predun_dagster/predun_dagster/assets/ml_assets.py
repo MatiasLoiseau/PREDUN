@@ -118,6 +118,13 @@ if TRAIN_SAMPLE_FRAC < 1.0:
 
 print(f"Train: {{X_train.shape[0]:,}} | Val: {{X_val.shape[0]:,}}")
 
+# Versión del dataset: período más reciente ingresado en canonical
+# (student_panel excluye el último período por el LEAD, por eso no se usa df.max())
+cycle_period  = pd.read_sql(
+    "SELECT max(academic_period) FROM canonical.cursada_historica", engine
+).iloc[0, 0]
+train_periods = sorted(df[train_mask]["academic_period"].unique().tolist())
+
 # ── Preprocessing pipeline (compartido por todos los modelos) ──────────────────
 def build_pipeline(classifier):
     numeric_pipe = Pipeline([
@@ -159,6 +166,7 @@ for model_name, clf in model_candidates:
         mlflow.set_tag("model_candidate",  "true")
         mlflow.set_tag("model_name",       model_name)
         mlflow.set_tag("train_cutoff",     TRAIN_CUTOFF)
+        mlflow.set_tag("data_version",     cycle_period)
 
         mlflow.log_param("classifier",            model_name)
         mlflow.log_param("train_size",            X_train.shape[0])
@@ -166,6 +174,13 @@ for model_name, clf in model_candidates:
         mlflow.log_param("train_period_cutoff",   TRAIN_CUTOFF)
         mlflow.log_param("num_features",          len(FEATURE_COLS_NUM))
         mlflow.log_param("cat_features",          len(FEATURE_COLS_CAT))
+
+        _ds = mlflow.data.from_pandas(
+            pd.DataFrame({{"academic_period": train_periods}}),
+            name=f"student_panel_{{cycle_period}}",
+            source="postgresql/marts/student_panel",
+        )
+        mlflow.log_input(_ds, context="training")
 
         pipeline.fit(X_train, y_train)
         training_time = time.time() - t0
@@ -200,7 +215,8 @@ for model_name, clf in model_candidates:
         # Guardar el modelo como artefacto (no registrar en Registry aún)
         mlflow.sklearn.log_model(
             sk_model=pipeline,
-            artifact_path="model",
+            artifact_path=f"model_{{model_name}}",
+            metadata={{"data_version": cycle_period, "train_cutoff": TRAIN_CUTOFF}},
         )
 
         results.append({{
@@ -225,14 +241,11 @@ best = max(results, key=lambda r: r["roc_auc"])
 print(f"\\nMejor modelo: {{best['model_name']}} (AUC={{best['roc_auc']:.4f}})")
 
 # Registrar SOLO el ganador en el Model Registry
-model_uri = f"runs:/{{best['run_id']}}/model"
+model_uri = f"runs:/{{best['run_id']}}/model_{{best['model_name']}}"
 mv = mlflow.register_model(
     model_uri=model_uri,
     name="student_dropout_model",
 )
-# cycle_period definido aquí para que esté disponible en el tagging y en PostgreSQL
-cycle_period = str(df["academic_period"].max())
-
 # ── Tagging automático del run ganador (reemplaza tag_mlflow_run.py) ──────────
 # Derivamos staging_periods desde la BD para no hardcodear.
 try:
