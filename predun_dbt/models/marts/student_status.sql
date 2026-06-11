@@ -1,9 +1,13 @@
 {{ config(materialized='table', full_refresh=true) }}
 
 with params as (
+    -- Anclado a la fecha máxima de los datos (no a current_date) para que el
+    -- estado sea reproducible: depende del snapshot de datos, no del día de ejecución.
     select
-        current_date                       as today,
-        current_date - interval '2 years'  as cutoff_date
+        max(trim(fecha)::date)                      as data_max_date,
+        max(trim(fecha)::date) - interval '2 years' as cutoff_date
+    from {{ ref('cursada_historica') }}
+    where trim(coalesce(fecha, '')) ~ '^\d{4}-\d{2}-\d{2}$'
 ),
 
 ultima_cursada as (

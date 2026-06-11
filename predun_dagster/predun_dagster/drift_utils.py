@@ -31,7 +31,7 @@ FEATURES_NUM = [
     "materias_win3",
     "promo_win3",
     "nota_win3",
-    "dias_desde_ult_periodo",
+    "dias_desde_ult_actividad",
     "promo_rate_period",
     "promo_rate_win3",
 ]
@@ -197,10 +197,11 @@ def compute_feature_drift(
         })
 
     if include_label and LABEL_COL in df_reference.columns and LABEL_COL in df_current.columns:
-        # Label drift: compara distribución de dropout_next (binario → trato como categórico)
+        # Label drift: compara distribución de dropout_next (binario → trato como categórico).
+        # Se descartan etiquetas censuradas (NULL) antes del cast para no contar 'nan' como categoría.
         psi = psi_categorical(
-            df_reference[LABEL_COL].astype(str),
-            df_current[LABEL_COL].astype(str),
+            df_reference[LABEL_COL].dropna().astype(int).astype(str),
+            df_current[LABEL_COL].dropna().astype(int).astype(str),
         )
         rows.append({
             "feature_name":   LABEL_COL,

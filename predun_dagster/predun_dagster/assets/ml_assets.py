@@ -77,15 +77,22 @@ TRAIN_CUTOFF = "2022_2C"
 
 NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 
 # ── Carga y preparación de datos ───────────────────────────────────────────────
-print("Cargando student_panel...")
-df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
+# Solo filas del conjunto de riesgo (estudiantes no abandonados al período t)
+# con etiqueta observable (ventana futura suficiente, ver student_panel.sql).
+print("Cargando student_panel (at_risk=1, etiqueta observable)...")
+df = pd.read_sql(
+    "SELECT * FROM marts.student_panel WHERE at_risk = 1 AND dropout_next IS NOT NULL",
+    engine,
+)
 df = df.drop_duplicates()
 df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+df["dropout_next"] = df["dropout_next"].astype(int)
 assert df["dropout_next"].isin([0, 1]).all(), "Valores inesperados en dropout_next"
+print(f"Filas en riesgo etiquetadas: {{len(df):,}} | prevalencia dropout_next: {{df['dropout_next'].mean():.3f}}")
 
 df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
 df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
@@ -116,10 +123,10 @@ if TRAIN_SAMPLE_FRAC < 1.0:
     )
     print(f"Subsampleo aplicado ({{TRAIN_SAMPLE_FRAC:.0%}}): {{X_train.shape[0]:,}} filas de entrenamiento")
 
-print(f"Train: {{X_train.shape[0]:,}} | Val: {{X_val.shape[0]:,}}")
+print(f"Train: {{X_train.shape[0]:,}} (prev={{y_train.mean():.3f}}) | Val: {{X_val.shape[0]:,}} (prev={{y_val.mean():.3f}})")
 
 # Versión del dataset: período más reciente ingresado en canonical
-# (student_panel excluye el último período por el LEAD, por eso no se usa df.max())
+# (las filas recientes del panel tienen etiqueta censurada, por eso no se usa df.max())
 cycle_period  = pd.read_sql(
     "SELECT max(academic_period) FROM canonical.cursada_historica", engine
 ).iloc[0, 0]
@@ -508,7 +515,7 @@ if len(active_students) == 0:
 
 legajos_list = "\\', \\'".join(active_students["legajo"].astype(str))
 student_panel = pd.read_sql(
-    f"SELECT * FROM marts.student_panel WHERE legajo IN (\\\'{{legajos_list}}\\\') ORDER BY legajo, academic_period DESC",
+    f"SELECT * FROM marts.student_panel WHERE legajo IN (\\\'{{legajos_list}}\\\') AND at_risk = 1 ORDER BY legajo, academic_period DESC, dias_desde_ult_actividad ASC NULLS LAST",
     engine,
 )
 if len(student_panel) == 0:
@@ -520,7 +527,7 @@ print(f"{{len(df)}} registros más recientes para scoring")
 
 NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
 df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)

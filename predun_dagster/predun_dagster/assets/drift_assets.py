@@ -54,13 +54,20 @@ CREATE TABLE IF NOT EXISTS predictions.drift_metrics (
 
 
 def _load_panel(engine) -> pd.DataFrame:
-    """Carga student_panel y calcula las features derivadas."""
+    """Carga las filas en riesgo de student_panel y calcula las features derivadas.
+
+    Se restringe a at_risk = 1 para que la comparación de drift opere sobre la
+    misma población que el entrenamiento y el scoring (estudiantes no abandonados
+    al período t). Las filas con etiqueta censurada (dropout_next NULL) se incluyen:
+    sus features cuentan para el drift de covariables y el PSI del label descarta
+    los NULL internamente.
+    """
     NUM_COLS = [
         "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-        "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+        "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
     ]
     df = pd.read_sql(
-        "SELECT * FROM marts.student_panel",
+        "SELECT * FROM marts.student_panel WHERE at_risk = 1",
         engine,
     )
     df = df.drop_duplicates()
