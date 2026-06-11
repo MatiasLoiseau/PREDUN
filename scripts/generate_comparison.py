@@ -56,7 +56,7 @@ MARKERS = {"2024_2C": "o", "2025_1C": "s", "2025_2C": "^"}
 
 NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
 FEATURE_COLS_CAT = ["cod_carrera"]
@@ -92,9 +92,13 @@ def load_metrics(version: str) -> dict:
 
 def load_validation_data():
     engine = create_engine(PG_URI)
-    df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
+    df = pd.read_sql(
+        "SELECT * FROM marts.student_panel WHERE at_risk = 1 AND dropout_next IS NOT NULL",
+        engine,
+    )
     df = df.drop_duplicates()
     df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+    df["dropout_next"] = df["dropout_next"].astype(int)
     df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
     df["promo_rate_win3"] = df["promo_win3"] / df["materias_win3"].replace(0, np.nan)
     df["materias_cum"] = (
@@ -117,7 +121,7 @@ def load_model_for_version(version: str):
 
     runs = client.search_runs(
         experiment_ids=[exp.experiment_id],
-        filter_string=f"tags.data_version = '{version}'",
+        filter_string=f"tags.data_version = '{version}' and tags.winning_model = 'true'",
         order_by=["start_time DESC"],
         max_results=1,
     )

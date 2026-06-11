@@ -647,9 +647,16 @@ def main():
 
     print("Cargando datos...")
     student_status = pd.read_sql("SELECT * FROM marts.student_status", engine)
-    student_panel  = pd.read_sql("SELECT * FROM marts.student_panel", engine)
+    # Población de modelado: filas en riesgo con etiqueta observable.
+    # Los plots de composición, balance de clases y correlaciones deben
+    # describir el dataset que efectivamente entrena el modelo.
+    student_panel  = pd.read_sql(
+        "SELECT * FROM marts.student_panel WHERE at_risk = 1 AND dropout_next IS NOT NULL",
+        engine,
+    )
+    student_panel["dropout_next"] = student_panel["dropout_next"].astype(int)
     print(f"  student_status : {len(student_status):,}")
-    print(f"  student_panel  : {len(student_panel):,}\n")
+    print(f"  student_panel (at_risk, etiquetado): {len(student_panel):,}\n")
 
     # Reporte de texto primero
     print_text_summary(student_status, student_panel, engine)

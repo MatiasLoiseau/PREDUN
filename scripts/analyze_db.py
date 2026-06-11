@@ -291,6 +291,25 @@ def analyze_student_panel(engine):
     section("4. MARTS.STUDENT_PANEL — Panel de entrenamiento")
 
     try:
+        # Composición global del panel: en riesgo / fuera de riesgo / censura
+        composicion = pd.read_sql(
+            """
+            SELECT
+                COUNT(*)                                                     AS total_filas,
+                SUM(at_risk)                                                 AS filas_at_risk,
+                SUM(CASE WHEN at_risk = 1 AND dropout_next IS NOT NULL
+                         THEN 1 ELSE 0 END)                                  AS filas_modelado,
+                SUM(CASE WHEN dropout_next IS NULL THEN 1 ELSE 0 END)        AS filas_censuradas
+            FROM marts.student_panel
+            """,
+            engine,
+        )
+        c = composicion.iloc[0]
+        print(f"\n  Filas totales panel : {int(c['total_filas']):,}")
+        print(f"  Filas at_risk=1     : {int(c['filas_at_risk']):,}")
+        print(f"  Filas de modelado   : {int(c['filas_modelado']):,}  (at_risk=1 y etiqueta observable)")
+        print(f"  Filas censuradas    : {int(c['filas_censuradas']):,}  (ventana futura insuficiente)")
+
         overview = pd.read_sql(
             """
             SELECT
@@ -302,12 +321,14 @@ def analyze_student_panel(engine):
                 SUM(CASE WHEN dropout_next = 1 THEN 1 ELSE 0 END) AS filas_abandono,
                 SUM(CASE WHEN dropout_next = 0 THEN 1 ELSE 0 END) AS filas_activo
             FROM marts.student_panel
+            WHERE at_risk = 1 AND dropout_next IS NOT NULL
             """,
             engine,
         )
         r = overview.iloc[0]
         total = int(r["total_filas"])
-        print(f"\n  Filas totales       : {total:,}")
+        print(f"\n  — Población de modelado (at_risk=1, etiquetada) —")
+        print(f"  Filas               : {total:,}")
         print(f"  Legajos únicos      : {int(r['legajos_unicos']):,}")
         print(f"  Carreras            : {int(r['carreras']):,}")
         print(f"  Períodos cubiertos  : {int(r['periodos']):,}")
@@ -325,6 +346,7 @@ def analyze_student_panel(engine):
                 COUNT(*) AS n,
                 AVG(dropout_next) AS tasa_dropout
             FROM marts.student_panel
+            WHERE at_risk = 1 AND dropout_next IS NOT NULL
             GROUP BY split
             ORDER BY split
             """,
@@ -334,7 +356,7 @@ def analyze_student_panel(engine):
             print(f"  {row['split']:6s}  {int(row['n']):>10,} filas  dropout={row['tasa_dropout']*100:.1f}%")
 
         # Por período
-        print("\n  Filas y tasa de dropout por período académico:")
+        print("\n  Filas y tasa de dropout por período académico (población de modelado):")
         hr()
         by_period = pd.read_sql(
             """
@@ -344,6 +366,7 @@ def analyze_student_panel(engine):
                 COUNT(DISTINCT legajo) AS legajos,
                 AVG(dropout_next) AS tasa_dropout
             FROM marts.student_panel
+            WHERE at_risk = 1 AND dropout_next IS NOT NULL
             GROUP BY academic_period
             ORDER BY academic_period
             """,
@@ -669,6 +692,7 @@ def analyze_feature_stats(engine):
                 dropout_next
             FROM marts.student_panel
             WHERE academic_period > '{TRAIN_CUTOFF}'
+              AND at_risk = 1 AND dropout_next IS NOT NULL
             """,
             engine,
         )

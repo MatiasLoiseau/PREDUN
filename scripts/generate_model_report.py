@@ -52,7 +52,7 @@ VERSION_LABELS = {
 
 NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_periodo",
+    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
 FEATURE_COLS_CAT = ["cod_carrera"]
@@ -64,7 +64,7 @@ FEATURE_NAMES_ES = {
     "materias_win3":         "Materias cursadas (ventana 4p)",
     "promo_win3":            "Materias aprobadas (ventana 4p)",
     "nota_win3":             "Nota media (ventana 4p)",
-    "dias_desde_ult_periodo":"Días desde últ. período",
+    "dias_desde_ult_actividad": "Días desde últ. actividad",
     "promo_rate_period":     "Tasa aprobación (período)",
     "promo_rate_win3":       "Tasa aprobación (ventana 4p)",
     "materias_cum":          "Materias acumuladas",
@@ -114,10 +114,14 @@ def despine(ax):
 # ── Carga de datos ────────────────────────────────────────────────────────────
 def load_validation_data():
     engine = create_engine(PG_URI)
-    print("Cargando student_panel...")
-    df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
+    print("Cargando student_panel (at_risk=1, etiqueta observable)...")
+    df = pd.read_sql(
+        "SELECT * FROM marts.student_panel WHERE at_risk = 1 AND dropout_next IS NOT NULL",
+        engine,
+    )
     df = df.drop_duplicates()
     df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+    df["dropout_next"] = df["dropout_next"].astype(int)
     df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
     df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
     df["materias_cum"] = (
@@ -147,14 +151,17 @@ def load_model(version: str):
     if exp is None:
         print(f"ERROR: experimento '{EXPERIMENT_NAME}' no encontrado"); sys.exit(1)
 
+    # winning_model='true' es necesario: desde el flujo multi-modelo, los TRES
+    # candidatos llevan el tag data_version; sin este filtro se cargaría el
+    # último candidato entrenado (LogisticRegression) en lugar del ganador.
     runs = client.search_runs(
         experiment_ids=[exp.experiment_id],
-        filter_string=f"tags.data_version = '{version}'",
+        filter_string=f"tags.data_version = '{version}' and tags.winning_model = 'true'",
         order_by=["start_time DESC"], max_results=1,
     )
     if not runs:
-        print(f"ERROR: no hay run taggeado con data_version='{version}'")
-        print(f"  Ejecutá: python scripts/tag_mlflow_run.py --version {version}")
+        print(f"ERROR: no hay run ganador taggeado con data_version='{version}'")
+        print(f"  Verificá que el job drift_train_predict del ciclo {version} haya finalizado")
         sys.exit(1)
 
     run   = runs[0]
