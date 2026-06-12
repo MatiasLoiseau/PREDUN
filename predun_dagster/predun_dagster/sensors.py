@@ -1,6 +1,6 @@
 from dagster import RunRequest, SkipReason, sensor
 from dagster_dbt import get_asset_key_for_model
-from .jobs import refresh_canonical
+from .jobs import drift_train_predict
 from .assets import dbt_project_assets
 
 PANEL_KEY = get_asset_key_for_model(
@@ -8,7 +8,12 @@ PANEL_KEY = get_asset_key_for_model(
     model_name="student_panel",
 )
 
-@sensor(job=refresh_canonical, minimum_interval_seconds=3600)
+# Una nueva materialización del panel (producida por refresh_canonical tras una
+# entrega) dispara el ciclo de actualización del modelo: deriva, entrenamiento
+# y scoring. Apuntar a drift_train_predict (y no a refresh_canonical) evita la
+# auto-referencia: el ciclo de ML no re-materializa el panel, por lo que el
+# sensor no se re-dispara a sí mismo.
+@sensor(job=drift_train_predict, minimum_interval_seconds=3600)
 def new_period_sensor(context):
     records = context.instance.get_event_log_records(
         asset_key=PANEL_KEY,

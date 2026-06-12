@@ -143,7 +143,13 @@ def detect_data_drift(context: AssetExecutionContext) -> dict:
     df_ref = df[ref_mask].copy()
     df_cur = df[cur_mask].copy()
 
-    cycle_period     = str(df_cur["academic_period"].max())  # período más reciente disponible
+    # Identificador del ciclo = entrega cargada en canonical (igual que el entrenamiento).
+    # No usar el período máximo del panel: la entrega X contiene cursadas hasta X-1,
+    # por lo que el panel "atrasa" un período y dos ciclos distintos colisionarían
+    # bajo el mismo cycle_period, pisándose mutuamente en predictions.drift_metrics.
+    cycle_period = str(pd.read_sql(
+        "SELECT max(academic_period) FROM canonical.cursada_historica", engine
+    ).iloc[0, 0])
     reference_period = TRAIN_CUTOFF
 
     context.log.info(
