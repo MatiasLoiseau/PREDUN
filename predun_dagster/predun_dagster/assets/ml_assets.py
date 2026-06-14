@@ -79,6 +79,10 @@ NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
     "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
+# Features derivadas: ahora se calculan en dbt (student_panel) y se leen de la
+# tabla, garantizando que entrenamiento y scoring usen EXACTAMENTE la misma
+# definición (elimina el training-serving skew que tenía materias_cum).
+DERIVED_COLS = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
 
 # ── Carga y preparación de datos ───────────────────────────────────────────────
 # Solo filas del conjunto de riesgo (estudiantes no abandonados al período t)
@@ -89,20 +93,12 @@ df = pd.read_sql(
     engine,
 )
 df = df.drop_duplicates()
-df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+df[NUM_COLS + DERIVED_COLS] = df[NUM_COLS + DERIVED_COLS].apply(pd.to_numeric, errors="coerce")
 df["dropout_next"] = df["dropout_next"].astype(int)
 assert df["dropout_next"].isin([0, 1]).all(), "Valores inesperados en dropout_next"
 print(f"Filas en riesgo etiquetadas: {{len(df):,}} | prevalencia dropout_next: {{df['dropout_next'].mean():.3f}}")
 
-df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
-df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
-df["materias_cum"] = (
-    df.sort_values("academic_period")
-      .groupby(["legajo", "cod_carrera"])["materias_en_periodo"]
-      .cumsum()
-)
-
-FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_NUM = NUM_COLS + DERIVED_COLS
 FEATURE_COLS_CAT = ["cod_carrera"]
 
 X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
@@ -529,12 +525,15 @@ NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
     "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
-df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
-df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
-df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
-df["materias_cum"]      = df["materias_en_periodo"].cumsum()
+# Features derivadas leídas de student_panel (idénticas a las de entrenamiento):
+# promo_rate_period, promo_rate_win3 y materias_cum se calculan en dbt.
+# Antes materias_cum se recomputaba aquí con cumsum() sobre la fila más reciente
+# por estudiante, produciendo un acumulado ENTRE estudiantes sin sentido
+# (training-serving skew). Ahora se lee el valor correcto desde la tabla.
+DERIVED_COLS = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+df[NUM_COLS + DERIVED_COLS] = df[NUM_COLS + DERIVED_COLS].apply(pd.to_numeric, errors="coerce")
 
-FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_NUM = NUM_COLS + DERIVED_COLS
 FEATURE_COLS_CAT = ["cod_carrera"]
 X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
 
