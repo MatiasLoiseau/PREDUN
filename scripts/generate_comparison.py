@@ -97,15 +97,9 @@ def load_validation_data():
         engine,
     )
     df = df.drop_duplicates()
-    df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+    # Features derivadas leídas del panel (calculadas en dbt), no recomputadas.
+    df[FEATURE_COLS_NUM] = df[FEATURE_COLS_NUM].apply(pd.to_numeric, errors="coerce")
     df["dropout_next"] = df["dropout_next"].astype(int)
-    df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
-    df["promo_rate_win3"] = df["promo_win3"] / df["materias_win3"].replace(0, np.nan)
-    df["materias_cum"] = (
-        df.sort_values("academic_period")
-        .groupby(["legajo", "cod_carrera"])["materias_en_periodo"]
-        .cumsum()
-    )
     val_mask = df["academic_period"] > TRAIN_CUTOFF
     X_val = df.loc[val_mask, FEATURE_COLS_NUM + FEATURE_COLS_CAT]
     y_val = df.loc[val_mask, "dropout_next"]

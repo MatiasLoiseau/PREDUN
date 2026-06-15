@@ -44,14 +44,14 @@ DRIFT_COLORS = {"high": C_HIGH, "moderate": C_MOD, "none": C_NONE}
 PSI_THRESHOLDS = {"high": 0.25, "moderate": 0.10}
 
 FEATURE_LABELS = {
-    "promo_rate_win3":          "Tasa aprobación (ventana 4p)",
-    "promo_rate_period":        "Tasa aprobación (período)",
+    "promo_rate_win3":          "Tasa promoción (ventana 4p)",
+    "promo_rate_period":        "Tasa promoción (período)",
     "materias_win3":            "Materias cursadas (ventana 4p)",
     "materias_en_periodo":      "Materias cursadas (período)",
-    "promo_en_periodo":         "Materias aprobadas (período)",
+    "promo_en_periodo":         "Materias promocionadas (período)",
     "nota_media_en_periodo":    "Nota media (período)",
     "nota_win3":                "Nota media (ventana 4p)",
-    "promo_win3":               "Materias aprobadas (ventana 4p)",
+    "promo_win3":               "Materias promocionadas (ventana 4p)",
     "dias_desde_ult_actividad": "Días desde últ. actividad",
     "cod_carrera":              "Carrera (cod_carrera)",
     "dropout_next":             "Variable objetivo (dropout_next)",

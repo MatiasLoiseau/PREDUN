@@ -23,6 +23,9 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, text
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
@@ -31,12 +34,16 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    roc_auc_score, brier_score_loss, f1_score, precision_score, recall_score,
+    roc_auc_score, roc_curve, brier_score_loss, f1_score, precision_score, recall_score,
 )
 
 warnings.filterwarnings("ignore")
 
 PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
+THESIS_FIGS_DIR = (
+    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
+)
+PERIOD_COLORS = ["#1565C0", "#2E7D32", "#E65100"]
 
 NUM = ["materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
        "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad"]
@@ -97,6 +104,80 @@ def grouped_bootstrap_auc(y, p, groups, n=300, seed=42):
     return float(np.percentile(aucs, 2.5)), float(np.percentile(aucs, 97.5))
 
 
+def _set_style():
+    try:
+        plt.style.use("seaborn-v0_8-whitegrid")
+    except OSError:
+        pass
+    plt.rcParams.update({
+        "font.family": "serif", "font.size": 11, "axes.titlesize": 12,
+        "axes.labelsize": 11, "legend.fontsize": 9,
+        "savefig.dpi": 300, "savefig.bbox": "tight", "savefig.pad_inches": 0.1,
+    })
+
+
+def plot_roc_by_period(roc_data, out_dir):
+    """roc_curves_comparison.png — curva ROC del modelo en cada período de prueba."""
+    fig, ax = plt.subplots(figsize=(6, 5.5))
+    for i, d in enumerate(roc_data):
+        fpr, tpr, _ = roc_curve(d["y"], d["p"])
+        a = roc_auc_score(d["y"], d["p"])
+        ax.plot(fpr, tpr, color=PERIOD_COLORS[i % len(PERIOD_COLORS)], lw=2.0,
+                label=f"Prueba {d['period'].replace('_', '-')}  (AUC = {a:.3f})")
+    # banda del baseline de recencia (rango de AUC entre períodos)
+    base_aucs = [roc_auc_score(d["y"], d["base"]) for d in roc_data]
+    ax.plot([], [], " ", label=f"Baseline recencia: AUC {min(base_aucs):.2f}–{max(base_aucs):.2f}")
+    ax.plot([0, 1], [0, 1], "k--", lw=1.2, alpha=0.5, label="Aleatorio (AUC = 0.500)")
+    ax.set_xlabel("Tasa de Falsos Positivos (1 − Especificidad)")
+    ax.set_ylabel("Tasa de Verdaderos Positivos (Sensibilidad)")
+    ax.set_title("Curvas ROC por período de prueba — backtest de origen móvil")
+    ax.legend(loc="lower right", framealpha=0.9)
+    ax.set_xlim(-0.01, 1.01); ax.set_ylim(-0.01, 1.01)
+    path = os.path.join(out_dir, "roc_curves_comparison.png")
+    fig.savefig(path); plt.close(fig)
+    print(f"  Guardado: {path}")
+
+
+def plot_metrics_evolution(res, out_dir):
+    """metrics_comparison.png — AUC (con IC), Brier y BSS a lo largo de los orígenes."""
+    x = np.arange(len(res))
+    labels = [f"{o}→{t}".replace("_", "-") for o, t in zip(res["origin"], res["test_period"])]
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6))
+
+    ax = axes[0]
+    yerr = [res["auc"] - res["auc_ci_low"], res["auc_ci_high"] - res["auc"]]
+    ax.errorbar(x, res["auc"], yerr=yerr, fmt="o-", color="#1565C0", lw=2,
+                capsize=4, markersize=7, label="Modelo (IC 95%)")
+    ax.plot(x, res["baseline_recency_auc"], "s--", color="#B71C1C", lw=1.6,
+            markersize=6, label="Baseline recencia")
+    ax.set_ylim(0.5, 1.0); ax.set_ylabel("ROC-AUC"); ax.set_title("AUC out-of-time")
+    ax.set_xticks(x); ax.set_xticklabels(labels, rotation=15, ha="right")
+    ax.legend(fontsize=8)
+    for xi, v in zip(x, res["auc"]):
+        ax.text(xi, v + 0.012, f"{v:.3f}", ha="center", fontsize=8.5, fontweight="bold")
+
+    ax = axes[1]
+    ax.bar(x, res["brier"], color="#2E7D32", alpha=0.85, edgecolor="white", width=0.55)
+    ax.set_ylabel("Brier Score ↓"); ax.set_title("Error probabilístico (Brier)")
+    ax.set_xticks(x); ax.set_xticklabels(labels, rotation=15, ha="right")
+    for xi, v in zip(x, res["brier"]):
+        ax.text(xi, v + 0.002, f"{v:.3f}", ha="center", fontsize=8.5, fontweight="bold")
+
+    ax = axes[2]
+    ax.bar(x, res["brier_skill_score"], color="#E65100", alpha=0.85, edgecolor="white", width=0.55)
+    ax.set_ylim(0, 1); ax.set_ylabel("Brier Skill Score ↑")
+    ax.set_title("Mejora vs. predictor constante")
+    ax.set_xticks(x); ax.set_xticklabels(labels, rotation=15, ha="right")
+    for xi, v in zip(x, res["brier_skill_score"]):
+        ax.text(xi, v + 0.01, f"{v:.2f}", ha="center", fontsize=8.5, fontweight="bold")
+
+    fig.suptitle("Métricas del backtest de origen móvil — modelo GradientBoosting", y=1.02)
+    fig.tight_layout()
+    path = os.path.join(out_dir, "metrics_comparison.png")
+    fig.savefig(path); plt.close(fig)
+    print(f"  Guardado: {path}")
+
+
 def main():
     engine = create_engine(PG_URI)
     df = pd.read_sql(
@@ -107,6 +188,7 @@ def main():
     df["dropout_next"] = df["dropout_next"].astype(int)
 
     rows = []
+    roc_data = []
     last_model = None
     for origin, test in ORIGINS:
         tr = df[df.academic_period <= origin]
@@ -130,6 +212,7 @@ def main():
         base = te["dias_desde_ult_actividad"].fillna(
             te["dias_desde_ult_actividad"].median()).values
         base_auc = roc_auc_score(yte, base)
+        roc_data.append({"period": test, "y": yte, "p": p, "base": base})
 
         order = np.argsort(-p)
         pk = {k: float(yte[order[:int(len(p) * k / 100)]].mean()) for k in (5, 10, 20, 30)}
@@ -150,6 +233,12 @@ def main():
     res = pd.DataFrame(rows)
     pd.set_option("display.width", 220, "display.max_columns", 60)
     print(res.to_string(index=False))
+
+    # ── Figuras para la tesis ──────────────────────────────────────────────────
+    os.makedirs(THESIS_FIGS_DIR, exist_ok=True)
+    _set_style()
+    plot_roc_by_period(roc_data, THESIS_FIGS_DIR)
+    plot_metrics_evolution(res, THESIS_FIGS_DIR)
 
     # Importancia de features del último modelo (origen 2022_2C)
     imp = last_model.named_steps["model"].feature_importances_

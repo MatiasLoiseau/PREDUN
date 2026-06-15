@@ -59,14 +59,14 @@ FEATURE_COLS_CAT = ["cod_carrera"]
 
 FEATURE_NAMES_ES = {
     "materias_en_periodo":   "Materias cursadas (período)",
-    "promo_en_periodo":      "Materias aprobadas (período)",
+    "promo_en_periodo":      "Materias promocionadas (período)",
     "nota_media_en_periodo": "Nota media (período)",
     "materias_win3":         "Materias cursadas (ventana 4p)",
-    "promo_win3":            "Materias aprobadas (ventana 4p)",
+    "promo_win3":            "Materias promocionadas (ventana 4p)",
     "nota_win3":             "Nota media (ventana 4p)",
     "dias_desde_ult_actividad": "Días desde últ. actividad",
-    "promo_rate_period":     "Tasa aprobación (período)",
-    "promo_rate_win3":       "Tasa aprobación (ventana 4p)",
+    "promo_rate_period":     "Tasa promoción (período)",
+    "promo_rate_win3":       "Tasa promoción (ventana 4p)",
     "materias_cum":          "Materias acumuladas",
 }
 
@@ -120,15 +120,10 @@ def load_validation_data():
         engine,
     )
     df = df.drop_duplicates()
-    df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
+    # Las features derivadas (promo_rate_*, materias_cum) ya vienen calculadas
+    # desde dbt en el panel — se leen, no se recomputan (evita el training-serving skew).
+    df[FEATURE_COLS_NUM] = df[FEATURE_COLS_NUM].apply(pd.to_numeric, errors="coerce")
     df["dropout_next"] = df["dropout_next"].astype(int)
-    df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
-    df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
-    df["materias_cum"] = (
-        df.sort_values("academic_period")
-          .groupby(["legajo", "cod_carrera"])["materias_en_periodo"]
-          .cumsum()
-    )
     assert df["dropout_next"].isin([0, 1]).all()
 
     train_mask   = df["academic_period"] <= TRAIN_CUTOFF
