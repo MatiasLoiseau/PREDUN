@@ -104,9 +104,26 @@ FEATURE_COLS_CAT = ["cod_carrera"]
 X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
 y = df["dropout_next"]
 
-train_mask = df["academic_period"] <= TRAIN_CUTOFF
+# Split temporal. Normalmente: train <= TRAIN_CUTOFF y validación = períodos
+# posteriores etiquetables. Bajo la censura estricta de 4 períodos, una entrega
+# temprana puede no tener NINGÚN período etiquetable posterior al corte (su
+# ventana futura aún no transcurrió por completo). En ese caso se reserva el
+# último período etiquetable disponible como validación, para que el ciclo
+# produzca un modelo y métricas en lugar de fallar por validación vacía.
+labelable_periods = sorted(df["academic_period"].unique())
+post_cutoff = [p for p in labelable_periods if p > TRAIN_CUTOFF]
+if post_cutoff:
+    train_mask = df["academic_period"] <= TRAIN_CUTOFF
+    val_desc = f"períodos > {{TRAIN_CUTOFF}}"
+else:
+    val_period = labelable_periods[-1]
+    train_mask = df["academic_period"] < val_period
+    val_desc = f"período {{val_period}} (fallback: sin etiquetas > {{TRAIN_CUTOFF}})"
+    print(f"AVISO: sin períodos etiquetables posteriores a {{TRAIN_CUTOFF}}; "
+          f"se reserva {{val_period}} como validación.")
 X_train, y_train = X[train_mask], y[train_mask]
 X_val,   y_val   = X[~train_mask], y[~train_mask]
+print(f"Validación: {{val_desc}}")
 
 # ── Subsampleo del training (configurable desde Dagster) ──────────────────────
 TRAIN_SAMPLE_FRAC = {train_sample_frac}
