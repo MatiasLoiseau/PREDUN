@@ -1,9 +1,10 @@
 """
 Backtest temporal de origen móvil para PREDUN (evaluación de generalización).
 
-Para cada origen, entrena sobre las filas en riesgo con etiqueta observable
-hasta ese período (academic_period <= origen) y evalúa sobre el período
-siguiente plenamente etiquetable. Reporta, por período de prueba:
+Para cada período de prueba P, entrena sobre las filas en riesgo con etiqueta
+observable hasta P - LABEL_HORIZON (EMBARGO de maduración: ninguna etiqueta de
+entrenamiento depende de actividad de P o posterior) y evalúa sobre P. Reporta,
+por período de prueba:
 
   - AUC con IC 95% por bootstrap AGRUPADO por legajo (respeta la correlación
     entre observaciones de un mismo estudiante).
@@ -41,9 +42,9 @@ warnings.filterwarnings("ignore")
 
 PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
 THESIS_FIGS_DIR = (
-    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
+    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter5"
 )
-PERIOD_COLORS = ["#1565C0", "#2E7D32", "#E65100"]
+PERIOD_COLORS = ["#1565C0", "#2E7D32", "#E65100", "#6A1B9A"]
 
 NUM = ["materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
        "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad"]
@@ -51,8 +52,30 @@ DER = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
 FEATURES_NUM = NUM + DER
 FEATURES_CAT = ["cod_carrera"]
 
-# Origen de entrenamiento -> primer período plenamente etiquetable posterior.
-ORIGINS = [("2021_2C", "2022_1C"), ("2022_1C", "2022_2C"), ("2022_2C", "2023_1C")]
+# Horizonte de la etiqueta dropout_next: mira los 4 períodos siguientes a t
+# (debe coincidir con la ventana definida en marts/student_panel.sql).
+LABEL_HORIZON = 4
+
+
+def shift_period(period, k):
+    """Período k cuatrimestres antes (k>0) o después (k<0). Ej: shift_period('2023_1C', 4) -> '2021_1C'."""
+    n = int(period[:4]) * 2 + (int(period[5]) - 1) - k
+    return str(n // 2) + "_" + str(n % 2 + 1) + "C"
+
+
+# Rolling-origin CON EMBARGO de maduración: para predecir el período de prueba P,
+# el entrenamiento se corta en P - LABEL_HORIZON, de modo que NINGUNA etiqueta de
+# entrenamiento dependa de actividad ocurrida durante o después de P. Sin este
+# embargo, las etiquetas de las filas recientes de entrenamiento (que miran 4
+# períodos al futuro) filtran información del período evaluado (fuga temporal).
+TEST_PERIODS = ["2021_2C", "2022_1C", "2022_2C", "2023_1C"]
+ORIGINS = [(shift_period(t, LABEL_HORIZON), t) for t in TEST_PERIODS]
+
+# Experimento de dato incremental: test FIJO, corte de entrenamiento creciente
+# (todos respetan el embargo: <= FIXED_TEST - LABEL_HORIZON). Aísla el efecto de
+# incorporar más historia de entrenamiento sobre un mismo conjunto de prueba.
+FIXED_TEST = "2023_1C"
+INCREMENTAL_CUTOFFS = ["2019_2C", "2020_1C", "2020_2C", "2021_1C"]
 
 
 def build_pipeline(clf):
@@ -178,6 +201,26 @@ def plot_metrics_evolution(res, out_dir):
     print(f"  Guardado: {path}")
 
 
+def plot_incremental(inc, out_dir):
+    """incremental_training.png — AUC sobre un test FIJO al crecer el entrenamiento."""
+    fig, ax = plt.subplots(figsize=(6.5, 5))
+    x = np.arange(len(inc))
+    yerr = [inc["auc"] - inc["auc_ci_low"], inc["auc_ci_high"] - inc["auc"]]
+    ax.errorbar(x, inc["auc"], yerr=yerr, fmt="o-", color="#1565C0", lw=2,
+                capsize=4, markersize=7)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"hasta {c}\n(n={n:,})".replace("_", "-")
+                        for c, n in zip(inc["train_cutoff"], inc["n_train"])], fontsize=8)
+    ax.set_ylabel(f"ROC-AUC (test fijo {inc['test_period'].iloc[0].replace('_', '-')})")
+    ax.set_title("Efecto del entrenamiento incremental (test fijo, IC 95%)")
+    for xi, v in zip(x, inc["auc"]):
+        ax.text(xi, v + 0.004, f"{v:.3f}", ha="center", fontsize=8.5, fontweight="bold")
+    fig.tight_layout()
+    path = os.path.join(out_dir, "incremental_training.png")
+    fig.savefig(path); plt.close(fig)
+    print(f"  Guardado: {path}")
+
+
 def main():
     engine = create_engine(PG_URI)
     df = pd.read_sql(
@@ -234,17 +277,84 @@ def main():
     pd.set_option("display.width", 220, "display.max_columns", 60)
     print(res.to_string(index=False))
 
+    # ── Experimento de dato incremental: test FIJO, corte creciente (con embargo) ──
+    te_f = df[df.academic_period == FIXED_TEST]
+    Xte_f, yte_f = te_f[FEATURES_NUM + FEATURES_CAT], te_f["dropout_next"].values
+    leg_f = te_f["legajo"].values
+    inc_rows = []
+    for cut in INCREMENTAL_CUTOFFS:
+        tr_f = df[df.academic_period <= cut]
+        m = build_pipeline(GradientBoostingClassifier(
+            n_estimators=100, max_depth=3, subsample=0.8, random_state=42)).fit(
+            tr_f[FEATURES_NUM + FEATURES_CAT], tr_f["dropout_next"].values)
+        pf = m.predict_proba(Xte_f)[:, 1]
+        lo_f, hi_f = grouped_bootstrap_auc(yte_f, pf, leg_f)
+        inc_rows.append(dict(
+            train_cutoff=cut, test_period=FIXED_TEST, n_train=len(tr_f), n_test=len(te_f),
+            auc=round(roc_auc_score(yte_f, pf), 4),
+            auc_ci_low=round(lo_f, 4), auc_ci_high=round(hi_f, 4),
+        ))
+    inc = pd.DataFrame(inc_rows)
+    print(f"\nExperimento incremental (test fijo = {FIXED_TEST}):")
+    print(inc.to_string(index=False))
+
+    # ── Evaluación agrupada por legajo: generalización a estudiantes NO vistos ──────
+    # El bootstrap agrupado sobre un test de un único período NO mide la generalización
+    # a estudiantes nuevos (cada legajo aparece una vez). Para el origen final
+    # (corte 2021_1C, test 2023_1C) se distingue:
+    #   - subgrupos del test con el MISMO modelo embargado: estudiantes ya vistos en
+    #     entrenamiento vs estudiantes nuevos (sin filas en el train);
+    #   - una partición agrupada ESTRICTA: entrenar excluyendo del train a los legajos
+    #     del test, de modo que TODOS los estudiantes del test sean no vistos.
+    cut_g  = shift_period(FIXED_TEST, LABEL_HORIZON)
+    tr_all = df[df.academic_period <= cut_g]
+    te_g   = df[df.academic_period == FIXED_TEST]
+    yg     = te_g["dropout_next"].values
+    leg_g  = te_g["legajo"].values
+    train_legajos = set(tr_all["legajo"].unique())
+    seen = np.isin(leg_g, list(train_legajos))
+    n_seen, n_new = int(seen.sum()), int((~seen).sum())
+
+    def _safe_auc(y, p):
+        return float(roc_auc_score(y, p)) if len(np.unique(y)) > 1 else float("nan")
+
+    model_std = build_pipeline(GradientBoostingClassifier(
+        n_estimators=100, max_depth=3, subsample=0.8, random_state=42)).fit(
+        tr_all[FEATURES_NUM + FEATURES_CAT], tr_all["dropout_next"].values)
+    pg = model_std.predict_proba(te_g[FEATURES_NUM + FEATURES_CAT])[:, 1]
+    auc_seen = _safe_auc(yg[seen], pg[seen])
+    auc_new  = _safe_auc(yg[~seen], pg[~seen])
+
+    tr_grp = tr_all[~tr_all["legajo"].isin(set(leg_g))]
+    model_grp = build_pipeline(GradientBoostingClassifier(
+        n_estimators=100, max_depth=3, subsample=0.8, random_state=42)).fit(
+        tr_grp[FEATURES_NUM + FEATURES_CAT], tr_grp["dropout_next"].values)
+    p_grp = model_grp.predict_proba(te_g[FEATURES_NUM + FEATURES_CAT])[:, 1]
+    lo_grp, hi_grp = grouped_bootstrap_auc(yg, p_grp, leg_g)
+
+    grp = pd.DataFrame([dict(
+        test_period=FIXED_TEST, train_cutoff=cut_g, n_test=len(te_g),
+        n_test_seen=n_seen, n_test_new=n_new,
+        auc_full=round(_safe_auc(yg, pg), 4), auc_seen=round(auc_seen, 4), auc_new=round(auc_new, 4),
+        n_train_full=len(tr_all), n_train_grouped=len(tr_grp),
+        auc_grouped=round(_safe_auc(yg, p_grp), 4),
+        auc_grouped_ci_low=round(lo_grp, 4), auc_grouped_ci_high=round(hi_grp, 4),
+    )])
+    print(f"\nEvaluación agrupada por legajo (test fijo = {FIXED_TEST}):")
+    print(grp.to_string(index=False))
+
     # ── Figuras para la tesis ──────────────────────────────────────────────────
     os.makedirs(THESIS_FIGS_DIR, exist_ok=True)
     _set_style()
     plot_roc_by_period(roc_data, THESIS_FIGS_DIR)
     plot_metrics_evolution(res, THESIS_FIGS_DIR)
+    plot_incremental(inc, THESIS_FIGS_DIR)
 
-    # Importancia de features del último modelo (origen 2022_2C)
+    # Importancia de features del modelo del último origen (con embargo)
     imp = last_model.named_steps["model"].feature_importances_
     num_imp = list(zip(FEATURES_NUM, imp[:len(FEATURES_NUM)]))
     cat_imp = float(imp[len(FEATURES_NUM):].sum())
-    print("\nImportancia de features (modelo origen 2022_2C):")
+    print(f"\nImportancia de features (corte {ORIGINS[-1][0]} -> test {ORIGINS[-1][1]}):")
     for n, v in sorted(num_imp, key=lambda x: -x[1]):
         print(f"  {n:28s} {v:.3f}")
     print(f"  {'cod_carrera (one-hot)':28s} {cat_imp:.3f}")
@@ -253,9 +363,13 @@ def main():
     with engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS predictions"))
         conn.execute(text("DROP TABLE IF EXISTS predictions.backtest_results"))
+        conn.execute(text("DROP TABLE IF EXISTS predictions.backtest_incremental"))
+        conn.execute(text("DROP TABLE IF EXISTS predictions.backtest_grouped"))
         conn.commit()
     res.to_sql("backtest_results", engine, schema="predictions", if_exists="replace", index=False)
-    print("\nResultados persistidos en predictions.backtest_results")
+    inc.to_sql("backtest_incremental", engine, schema="predictions", if_exists="replace", index=False)
+    grp.to_sql("backtest_grouped", engine, schema="predictions", if_exists="replace", index=False)
+    print("\nResultados persistidos en predictions.backtest_results / backtest_incremental / backtest_grouped")
 
 
 if __name__ == "__main__":

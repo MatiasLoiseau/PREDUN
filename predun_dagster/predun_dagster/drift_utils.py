@@ -38,8 +38,16 @@ FEATURES_NUM = [
 FEATURES_CAT = ["cod_carrera"]
 LABEL_COL    = "dropout_next"
 
-# Corte de entrenamiento — mismo que en ml_assets.py
-TRAIN_CUTOFF = "2022_2C"
+# Horizonte de la etiqueta dropout_next (mira 4 períodos al futuro; ver
+# student_panel.sql). El corte de referencia/entrenamiento se calcula con EMBARGO
+# de maduración (igual que ml_assets.py): TRAIN_CUTOFF = VAL_PERIOD - LABEL_HORIZON.
+LABEL_HORIZON = 4
+
+
+def shift_period(period, k):
+    """Período k cuatrimestres antes (k>0) o después (k<0). Ej: shift_period('2023_1C', 4) -> '2021_1C'."""
+    n = int(period[:4]) * 2 + (int(period[5]) - 1) - k
+    return str(n // 2) + "_" + str(n % 2 + 1) + "C"
 
 
 # ── Funciones de PSI ──────────────────────────────────────────────────────────

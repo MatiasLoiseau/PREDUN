@@ -28,7 +28,7 @@ warnings.filterwarnings("ignore")
 
 PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
 THESIS_FIGS_DIR = (
-    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
+    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter5"
 )
 
 # Paleta

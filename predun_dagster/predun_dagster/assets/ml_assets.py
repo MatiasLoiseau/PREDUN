@@ -73,7 +73,18 @@ mlflow.set_experiment("student_dropout_prediction")
 
 PG_URI = "{pg_uri}"
 engine = create_engine(PG_URI)
-TRAIN_CUTOFF = "2022_2C"
+
+# Horizonte de la etiqueta dropout_next (mira 4 períodos al futuro; ver
+# student_panel.sql). El corte de entrenamiento NO es fijo: se calcula con
+# EMBARGO de maduración como (período de validación) - LABEL_HORIZON, para que
+# ninguna etiqueta de entrenamiento dependa de actividad del período de
+# validación o posterior (evita la fuga temporal por maduración de etiquetas).
+LABEL_HORIZON = 4
+
+
+def _shift_period(p, k):
+    n = int(p[:4]) * 2 + (int(p[5]) - 1) - k
+    return str(n // 2) + "_" + str(n % 2 + 1) + "C"
 
 NUM_COLS = [
     "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
@@ -104,26 +115,19 @@ FEATURE_COLS_CAT = ["cod_carrera"]
 X = df[FEATURE_COLS_NUM + FEATURE_COLS_CAT]
 y = df["dropout_next"]
 
-# Split temporal. Normalmente: train <= TRAIN_CUTOFF y validación = períodos
-# posteriores etiquetables. Bajo la censura estricta de 4 períodos, una entrega
-# temprana puede no tener NINGÚN período etiquetable posterior al corte (su
-# ventana futura aún no transcurrió por completo). En ese caso se reserva el
-# último período etiquetable disponible como validación, para que el ciclo
-# produzca un modelo y métricas en lugar de fallar por validación vacía.
+# Split temporal con EMBARGO de maduración. La validación es el período
+# etiquetable más reciente (VAL_PERIOD); el entrenamiento se corta LABEL_HORIZON
+# períodos antes (TRAIN_CUTOFF = VAL_PERIOD - 4), de modo que ninguna etiqueta de
+# entrenamiento dependa de actividad del período de validación o posterior. Los
+# períodos intermedios (zona de embargo) no se usan ni para train ni para val.
 labelable_periods = sorted(df["academic_period"].unique())
-post_cutoff = [p for p in labelable_periods if p > TRAIN_CUTOFF]
-if post_cutoff:
-    train_mask = df["academic_period"] <= TRAIN_CUTOFF
-    val_desc = f"períodos > {{TRAIN_CUTOFF}}"
-else:
-    val_period = labelable_periods[-1]
-    train_mask = df["academic_period"] < val_period
-    val_desc = f"período {{val_period}} (fallback: sin etiquetas > {{TRAIN_CUTOFF}})"
-    print(f"AVISO: sin períodos etiquetables posteriores a {{TRAIN_CUTOFF}}; "
-          f"se reserva {{val_period}} como validación.")
+VAL_PERIOD   = labelable_periods[-1]
+TRAIN_CUTOFF = _shift_period(VAL_PERIOD, LABEL_HORIZON)
+train_mask = df["academic_period"] <= TRAIN_CUTOFF
+val_mask   = df["academic_period"] == VAL_PERIOD
 X_train, y_train = X[train_mask], y[train_mask]
-X_val,   y_val   = X[~train_mask], y[~train_mask]
-print(f"Validación: {{val_desc}}")
+X_val,   y_val   = X[val_mask], y[val_mask]
+print(f"Validación: período {{VAL_PERIOD}} | corte de entrenamiento (embargo {{LABEL_HORIZON}} per.): {{TRAIN_CUTOFF}}")
 
 # ── Subsampleo del training (configurable desde Dagster) ──────────────────────
 TRAIN_SAMPLE_FRAC = {train_sample_frac}

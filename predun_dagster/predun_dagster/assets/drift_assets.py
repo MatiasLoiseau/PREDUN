@@ -23,7 +23,9 @@ from dagster import AssetExecutionContext, asset
 from sqlalchemy import create_engine, text
 
 from ..drift_utils import (
-    TRAIN_CUTOFF,
+    LABEL_HORIZON,
+    LABEL_COL,
+    shift_period,
     FEATURES_NUM,
     FEATURES_CAT,
     compute_feature_drift,
@@ -122,8 +124,9 @@ def _write_drift_to_db(engine, df_drift: pd.DataFrame, cycle_period: str, refere
 def detect_data_drift(context: AssetExecutionContext) -> dict:
     """
     Calcula PSI por feature comparando:
-      - Referencia : student_panel donde academic_period <= TRAIN_CUTOFF (2022_2C)
-      - Actual     : student_panel donde academic_period >  TRAIN_CUTOFF
+      - Referencia : student_panel donde academic_period <= corte embargado
+                     (VAL_PERIOD - LABEL_HORIZON, igual que ml_assets.py)
+      - Actual     : student_panel donde academic_period >  corte embargado
 
     La comparación referencia-vs-actual responde la pregunta operacional clave:
     '¿la población que estamos scorando hoy difiere de la que entrenamos el modelo?'
@@ -137,8 +140,13 @@ def detect_data_drift(context: AssetExecutionContext) -> dict:
     df = _load_panel(engine)
     context.log.info(f"Panel cargado: {len(df):,} filas en {time.time()-start_load:.1f}s")
 
-    ref_mask = df["academic_period"] <= TRAIN_CUTOFF
-    cur_mask = df["academic_period"] >  TRAIN_CUTOFF
+    # Corte de referencia con EMBARGO de maduración: el período etiquetable más
+    # reciente define la validación; la referencia (distribución de entrenamiento)
+    # es <= VAL_PERIOD - LABEL_HORIZON, igual que en ml_assets.py.
+    labelable = sorted(df.loc[df[LABEL_COL].notna(), "academic_period"].unique())
+    train_cutoff = shift_period(labelable[-1], LABEL_HORIZON)
+    ref_mask = df["academic_period"] <= train_cutoff
+    cur_mask = df["academic_period"] >  train_cutoff
 
     df_ref = df[ref_mask].copy()
     df_cur = df[cur_mask].copy()
@@ -150,11 +158,11 @@ def detect_data_drift(context: AssetExecutionContext) -> dict:
     cycle_period = str(pd.read_sql(
         "SELECT max(academic_period) FROM canonical.cursada_historica", engine
     ).iloc[0, 0])
-    reference_period = TRAIN_CUTOFF
+    reference_period = train_cutoff
 
     context.log.info(
         f"Referencia: {len(df_ref):,} filas (hasta {reference_period}) | "
-        f"Actual: {len(df_cur):,} filas (desde {TRAIN_CUTOFF} hasta {cycle_period})"
+        f"Actual: {len(df_cur):,} filas (desde {train_cutoff} hasta {cycle_period})"
     )
 
     # ── 2. Calcular PSI ───────────────────────────────────────────────────────

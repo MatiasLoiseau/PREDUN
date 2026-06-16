@@ -39,9 +39,16 @@ warnings.filterwarnings("ignore")
 MLFLOW_URI      = "http://localhost:8002"
 EXPERIMENT_NAME = "student_dropout_prediction"
 PG_URI          = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
-TRAIN_CUTOFF    = "2022_2C"
+LABEL_HORIZON   = 4  # horizonte de dropout_next; corte con embargo = VAL_PERIOD - 4
+
+
+def shift_period(period, k):
+    n = int(period[:4]) * 2 + (int(period[5]) - 1) - k
+    return str(n // 2) + "_" + str(n % 2 + 1) + "C"
+
+
 THESIS_FIGS_DIR = (
-    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
+    "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter5"
 )
 
 VERSION_LABELS = {
@@ -126,12 +133,15 @@ def load_validation_data():
     df["dropout_next"] = df["dropout_next"].astype(int)
     assert df["dropout_next"].isin([0, 1]).all()
 
-    train_mask   = df["academic_period"] <= TRAIN_CUTOFF
-    X_train      = df.loc[train_mask,  FEATURE_COLS_NUM + FEATURE_COLS_CAT]
-    y_train      = df.loc[train_mask,  "dropout_next"]
-    X_val        = df.loc[~train_mask, FEATURE_COLS_NUM + FEATURE_COLS_CAT]
-    y_val        = df.loc[~train_mask, "dropout_next"]
-    val_periods  = df.loc[~train_mask, "academic_period"]
+    val_period   = sorted(df["academic_period"].unique())[-1]
+    train_cutoff = shift_period(val_period, LABEL_HORIZON)
+    train_mask   = df["academic_period"] <= train_cutoff
+    val_mask     = df["academic_period"] == val_period
+    X_train      = df.loc[train_mask, FEATURE_COLS_NUM + FEATURE_COLS_CAT]
+    y_train      = df.loc[train_mask, "dropout_next"]
+    X_val        = df.loc[val_mask,   FEATURE_COLS_NUM + FEATURE_COLS_CAT]
+    y_val        = df.loc[val_mask,   "dropout_next"]
+    val_periods  = df.loc[val_mask,   "academic_period"]
 
     print(f"  Train: {len(X_train):,}  |  Val: {len(X_val):,}")
     print(f"  Períodos val: {sorted(val_periods.unique())}")

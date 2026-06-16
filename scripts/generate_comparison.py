@@ -35,7 +35,12 @@ warnings.filterwarnings("ignore")
 MLFLOW_URI = "http://localhost:8002"
 EXPERIMENT_NAME = "student_dropout_prediction"
 PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
-TRAIN_CUTOFF = "2022_2C"
+LABEL_HORIZON = 4  # horizonte de dropout_next; corte con embargo = VAL_PERIOD - 4
+
+
+def shift_period(period, k):
+    n = int(period[:4]) * 2 + (int(period[5]) - 1) - k
+    return str(n // 2) + "_" + str(n % 2 + 1) + "C"
 
 THESIS_FIGS_DIR = (
     "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
@@ -100,7 +105,8 @@ def load_validation_data():
     # Features derivadas leídas del panel (calculadas en dbt), no recomputadas.
     df[FEATURE_COLS_NUM] = df[FEATURE_COLS_NUM].apply(pd.to_numeric, errors="coerce")
     df["dropout_next"] = df["dropout_next"].astype(int)
-    val_mask = df["academic_period"] > TRAIN_CUTOFF
+    val_period = sorted(df["academic_period"].unique())[-1]
+    val_mask = df["academic_period"] == val_period
     X_val = df.loc[val_mask, FEATURE_COLS_NUM + FEATURE_COLS_CAT]
     y_val = df.loc[val_mask, "dropout_next"]
     return X_val, y_val

@@ -21,7 +21,9 @@ from sqlalchemy import create_engine
 warnings.filterwarnings("ignore")
 
 PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
-TRAIN_CUTOFF = "2022_2C"
+# Corte de entrenamiento con embargo de maduración (VAL_PERIOD - 4) del ciclo
+# final; aquí se usa solo para etiquetar descriptivamente train vs. post-train.
+TRAIN_CUTOFF = "2021_1C"
 THESIS_FIGS_DIR = (
     "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
 )
