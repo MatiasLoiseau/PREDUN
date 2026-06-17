@@ -31,14 +31,14 @@ THESIS_FIGS_DIR = (
 # ── Paleta institucional ──────────────────────────────────────────────────────
 C_BLUE   = "#1a3a6b"   # azul UNDAV / entrenamiento
 C_ORANGE = "#d95f02"   # validación / abandono
-C_GREEN  = "#2d6a2d"   # graduados
+C_GREEN  = "#2d6a2d"   # finalización curricular estimada
 C_GRAY   = "#636363"
 C_LBLUE  = "#6baed6"   # azul claro
 C_RED    = "#cb181d"   # abandono / riesgo
 C_LGRAY  = "#d9d9d9"
 
-STATUS_COLORS = {"estudiando": C_BLUE, "graduado": C_GREEN, "abandonó": C_RED}
-STATUS_LABELS = {"estudiando": "Estudiando", "graduado": "Completó oblig. académicas", "abandonó": "Abandonó"}
+STATUS_COLORS = {"estudiando": C_BLUE, "finalizacion_estimada": C_GREEN, "abandonó": C_RED}
+STATUS_LABELS = {"estudiando": "Estudiando", "finalizacion_estimada": "Finalización curric. estimada", "abandonó": "Abandonó"}
 
 
 # ── Estilo global ─────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ def despine(ax):
 
 # ── 1. Distribución de estados estudiantiles ─────────────────────────────────
 def plot_student_status(student_status, out_dir):
-    order  = ["estudiando", "graduado", "abandonó"]
+    order  = ["estudiando", "finalizacion_estimada", "abandonó"]
     counts = student_status["status"].value_counts().reindex(
         [s for s in order if s in student_status["status"].unique()]
     )
@@ -491,7 +491,7 @@ def print_text_summary(student_status, student_panel, engine):
     # 1. Distribución de estados
     print("\n  1. Distribución de estados estudiantiles:")
     print(HR)
-    order  = ["estudiando", "graduado", "abandonó"]
+    order  = ["estudiando", "finalizacion_estimada", "abandonó"]
     counts = student_status["status"].value_counts().reindex(
         [s for s in order if s in student_status["status"].unique()]
     )

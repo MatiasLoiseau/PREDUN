@@ -133,7 +133,7 @@ def analyze_canonical(engine):
     except Exception as e:
         print(f"  canonical.alumnos: ERROR — {e}")
 
-    # porcentaje_avance — análisis crítico de graduados
+    # porcentaje_avance — análisis crítico de la finalización curricular estimada
     # porcentaje_avance está almacenado como TEXT — requiere CAST con reemplazo de coma decimal
     try:
         df = pd.read_sql(
@@ -156,7 +156,7 @@ def analyze_canonical(engine):
         total = int(r["total"])
         sobre_90  = int(r["sobre_90"])
         sobre_100 = int(r["sobre_100"])
-        print("\n  canonical.porcentaje_avance  *** área de error de graduados ***")
+        print("\n  canonical.porcentaje_avance  *** área de la finalización curricular estimada ***")
         print(f"    Filas con valor numérico : {total:,}")
         print(f"    Legajos únicos           : {int(r['legajos_unicos']):,}")
         print(f"    Promedio avance          : {r['promedio_avance']:.2f}%")
@@ -217,37 +217,37 @@ def analyze_student_status(engine):
             barra = "█" * int(pct / 2)
             print(f"  {row['status']:30s}  {int(row['n']):>8,}  ({pct:5.1f}%)  {barra}")
 
-        # Detalle de graduados por carrera
-        print("\n  Graduados por carrera (top 15 por volumen):")
+        # Detalle de finalización curricular estimada por carrera
+        print("\n  Finalización curricular estimada por carrera (top 15 por volumen):")
         hr()
         grad = pd.read_sql(
             """
             SELECT
                 pa.cod_carrera,
-                COUNT(DISTINCT ss.legajo) AS graduados,
+                COUNT(DISTINCT ss.legajo) AS n_finalizacion,
                 AVG(CAST(REPLACE(pa.porcentaje_avance, ',', '.') AS NUMERIC)) AS avance_promedio
             FROM marts.student_status ss
             LEFT JOIN canonical.porcentaje_avance pa USING (legajo)
-            WHERE ss.status = 'graduado'
+            WHERE ss.status = 'finalizacion_estimada'
               AND (pa.porcentaje_avance IS NULL OR pa.porcentaje_avance ~ '^[0-9,\\.]+$')
             GROUP BY pa.cod_carrera
-            ORDER BY graduados DESC
+            ORDER BY n_finalizacion DESC
             LIMIT 15
             """,
             engine,
         )
         if not grad.empty:
-            print(f"  {'Carrera':<20} {'Graduados':>10} {'Avance prom':>12}")
-            print(f"  {'-'*20} {'-'*10} {'-'*12}")
+            print(f"  {'Carrera':<20} {'Finaliz.est':>12} {'Avance prom':>12}")
+            print(f"  {'-'*20} {'-'*12} {'-'*12}")
             for _, row in grad.iterrows():
                 carrera = str(row["cod_carrera"] or "N/A")
                 avg_av = f"{row['avance_promedio']:.1f}%" if pd.notna(row["avance_promedio"]) else "N/A"
-                print(f"  {carrera:<20} {int(row['graduados']):>10,} {avg_av:>12}")
+                print(f"  {carrera:<20} {int(row['n_finalizacion']):>12,} {avg_av:>12}")
         else:
-            print("  (sin graduados o sin join posible)")
+            print("  (sin finalización estimada o sin join posible)")
 
-        # Alumnos con avance >= 90% clasificados como NO graduados (potencial error)
-        print("\n  Legajos con avance >= 90% pero NO clasificados como graduado:")
+        # Alumnos con avance >= 90% clasificados como SIN finalización estimada (potencial error)
+        print("\n  Legajos con avance >= 90% pero NO clasificados como finalizacion_estimada:")
         hr()
         try:
             anomaly = pd.read_sql(
@@ -257,12 +257,12 @@ def analyze_student_status(engine):
                 JOIN canonical.porcentaje_avance pa USING (legajo)
                 WHERE pa.porcentaje_avance ~ '^[0-9,\\.]+$'
                   AND CAST(REPLACE(pa.porcentaje_avance, ',', '.') AS NUMERIC) >= 90
-                  AND ss.status != 'graduado'
+                  AND ss.status != 'finalizacion_estimada'
                 """,
                 engine,
             )
             n_anom = int(anomaly.iloc[0]["n"])
-            print(f"  {n_anom:,} legajos con avance >= 90% pero status != 'graduado'")
+            print(f"  {n_anom:,} legajos con avance >= 90% pero status != 'finalizacion_estimada'")
             if n_anom > 0:
                 detail = pd.read_sql(
                     """
@@ -271,7 +271,7 @@ def analyze_student_status(engine):
                     JOIN canonical.porcentaje_avance pa USING (legajo)
                     WHERE pa.porcentaje_avance ~ '^[0-9,\\.]+$'
                       AND CAST(REPLACE(pa.porcentaje_avance, ',', '.') AS NUMERIC) >= 90
-                      AND ss.status != 'graduado'
+                      AND ss.status != 'finalizacion_estimada'
                     GROUP BY ss.status
                     ORDER BY n DESC
                     """,
@@ -467,10 +467,10 @@ def analyze_predictions(engine):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. NUEVAS MÉTRICAS — Análisis de graduados (zona del error reportado)
+# 6. NUEVAS MÉTRICAS — Análisis de la finalización curricular estimada
 # ─────────────────────────────────────────────────────────────────────────────
 def analyze_graduate_metrics(engine):
-    section("6. ANÁLISIS DE GRADUADOS — Métricas nuevas (error reportado)")
+    section("6. ANÁLISIS DE FINALIZACIÓN CURRICULAR ESTIMADA — Métricas nuevas")
 
     try:
         # porcentaje_avance es TEXT — requiere CAST con REPLACE de coma decimal
@@ -510,8 +510,8 @@ def analyze_graduate_metrics(engine):
             max_a = f"{row['avance_max_val']:.1f}%" if pd.notna(row["avance_max_val"]) else "N/A"
             print(f"  {str(row['status']):<15} {int(row['n']):>8,} {avg_a:>12} {med_a:>8} {min_a:>6} {max_a:>6} {int(row['sin_avance']):>11,}")
 
-        # Umbral de graduación: cuántos quedan fuera con distintos umbrales
-        print("\n  Sensibilidad del umbral de graduación:")
+        # Umbral de finalización estimada: cuántos quedan fuera con distintos umbrales
+        print("\n  Sensibilidad del umbral de finalización curricular estimada:")
         hr()
         for umbral in [85, 88, 90, 92, 95, 100]:
             r = pd.read_sql(
@@ -523,10 +523,10 @@ def analyze_graduate_metrics(engine):
                 """,
                 engine,
             ).iloc[0]["n"]
-            print(f"    Umbral >= {umbral}%  :  {int(r):,} legajos clasificados como graduados")
+            print(f"    Umbral >= {umbral}%  :  {int(r):,} legajos con finalización estimada")
 
-        # Graduados sin actividad reciente en cursada (confirmación de graduación real)
-        print("\n  Graduados (avance >= 90%) — análisis de última actividad en cursada:")
+        # Finalización estimada sin actividad reciente en cursada (contraste con egreso real)
+        print("\n  Finalización estimada (avance >= 90%) — análisis de última actividad en cursada:")
         hr()
         grad_activity = pd.read_sql(
             """
@@ -603,16 +603,16 @@ def analyze_cohort_retention(engine):
             index="cohorte", columns="status", values="n", fill_value=0
         )
         pivot["total"] = pivot.sum(axis=1)
-        for col in ["abandonó", "estudiando", "graduado"]:
+        for col in ["abandonó", "estudiando", "finalizacion_estimada"]:
             if col in pivot.columns:
                 pivot[f"pct_{col}"] = pivot[col] / pivot["total"] * 100
 
-        print(f"\n  {'Cohorte':<12} {'Total':>8} {'Abandono%':>10} {'Cursando%':>10} {'Graduado%':>10}")
+        print(f"\n  {'Cohorte':<12} {'Total':>8} {'Abandono%':>10} {'Cursando%':>10} {'Finaliz.est%':>10}")
         print(f"  {'-'*12} {'-'*8} {'-'*10} {'-'*10} {'-'*10}")
         for cohorte, row in pivot.iterrows():
             pct_ab = f"{row.get('pct_abandonó', 0):.1f}%"
             pct_cu = f"{row.get('pct_estudiando', 0):.1f}%"
-            pct_gr = f"{row.get('pct_graduado', 0):.1f}%"
+            pct_gr = f"{row.get('pct_finalizacion_estimada', 0):.1f}%"
             print(f"  {cohorte:<12} {int(row['total']):>8,} {pct_ab:>10} {pct_cu:>10} {pct_gr:>10}")
 
     except Exception as e:
@@ -647,16 +647,16 @@ def analyze_gender_dropout(engine):
             index="sexo", columns="status", values="n", fill_value=0
         )
         pivot["total"] = pivot.sum(axis=1)
-        for col in ["abandonó", "estudiando", "graduado"]:
+        for col in ["abandonó", "estudiando", "finalizacion_estimada"]:
             if col in pivot.columns:
                 pivot[f"pct_{col}"] = pivot[col] / pivot["total"] * 100
 
-        print(f"\n  {'Sexo':<10} {'Total':>8} {'Abandono%':>10} {'Cursando%':>10} {'Graduado%':>10}")
+        print(f"\n  {'Sexo':<10} {'Total':>8} {'Abandono%':>10} {'Cursando%':>10} {'Finaliz.est%':>10}")
         print(f"  {'-'*10} {'-'*8} {'-'*10} {'-'*10} {'-'*10}")
         for sexo, row in pivot.iterrows():
             pct_ab = f"{row.get('pct_abandonó', 0):.1f}%"
             pct_cu = f"{row.get('pct_estudiando', 0):.1f}%"
-            pct_gr = f"{row.get('pct_graduado', 0):.1f}%"
+            pct_gr = f"{row.get('pct_finalizacion_estimada', 0):.1f}%"
             print(f"  {str(sexo):<10} {int(row['total']):>8,} {pct_ab:>10} {pct_cu:>10} {pct_gr:>10}")
 
         # Identidad de género (campo separado)

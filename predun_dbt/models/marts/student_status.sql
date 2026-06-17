@@ -18,10 +18,10 @@ ultima_cursada as (
     group by legajo
 ),
 
-graduados as (
+finalizacion_estimada as (
     select distinct
         legajo,
-        'graduado'       as status
+        'finalizacion_estimada' as status
     from {{ ref('porcentaje_avance') }}
     where coalesce(
         case
@@ -40,7 +40,7 @@ todos as (
         g.status
     from {{ ref('alumnos') }} a
     left join ultima_cursada u using (legajo)
-    left join graduados     g using (legajo)
+    left join finalizacion_estimada g using (legajo)
 ),
 
 status_enriched as (
@@ -48,13 +48,13 @@ status_enriched as (
         t.legajo,
         t.fecha_ultima_cursada,
         case
-            when t.status = 'graduado'                   then 'graduado'
+            when t.status = 'finalizacion_estimada'      then 'finalizacion_estimada'
             when t.fecha_ultima_cursada is null          then 'abandonó'
             when t.fecha_ultima_cursada < p.cutoff_date  then 'abandonó'
             else                                              'estudiando'
         end                                             as status,
         case
-            when t.status = 'graduado'                   then 0
+            when t.status = 'finalizacion_estimada'      then 0
             when t.fecha_ultima_cursada is null          then 1
             when t.fecha_ultima_cursada < p.cutoff_date  then 1
             else                                              0

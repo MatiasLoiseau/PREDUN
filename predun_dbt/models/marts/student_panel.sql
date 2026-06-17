@@ -29,11 +29,11 @@
           sin actividad.
       Solo se emite una etiqueta positiva cuando los 4 períodos futuros están
       plenamente observados, evitando positivos prematuros.
-    - Graduación: el porcentaje de avance disponible es un único snapshot
-      (no historizado), por lo que la exclusión de graduados NO es estrictamente
-      point-in-time. Se aplica solo dentro de la ventana plenamente observada
-      para acotar el sesgo. Limitación documentada: requiere padrón de egreso
-      con fecha para corregirse.
+    - Finalización curricular estimada: el porcentaje de avance disponible es un
+      único snapshot (no historizado), por lo que la exclusión por finalización
+      estimada NO es estrictamente point-in-time. Se aplica solo dentro de la
+      ventana plenamente observada para acotar el sesgo. Limitación documentada:
+      requiere padrón oficial de egreso con fecha para corregirse.
 
   Conjunto de riesgo (at_risk):
     - Una fila está "en riesgo" en el período t si el legajo registró actividad
@@ -94,8 +94,8 @@ actividad_legajo as (
     from cursadas_dated
 ),
 
--- 3) Graduados según porcentaje de avance final >= 90% (snapshot, ver header)
-graduados as (
+-- 3) Finalización curricular estimada: porcentaje de avance final >= 90% (snapshot, ver header)
+finalizacion_estimada as (
     select distinct legajo
     from {{ ref('porcentaje_avance') }}
     where coalesce(
@@ -152,11 +152,11 @@ labels as (
         case
             when le.n_periodos_futuros_obs < 4      then null  -- censura: ventana futura incompleta
             when coalesce(le.max_act_futura, 0) = 1 then 0     -- retomó dentro del horizonte
-            when g.legajo is not null               then 0     -- graduado: nunca abandono
+            when g.legajo is not null               then 0     -- finalización curricular estimada: nunca abandono
             else 1                                             -- 4 períodos futuros sin actividad
         end as dropout_next
     from legajo_estado le
-    left join graduados g
+    left join finalizacion_estimada g
       on g.legajo = le.legajo
 ),
 

@@ -1,15 +1,16 @@
 """
-(C) Sensibilidad al proxy de graduación (avance >= 90%).
+(C) Sensibilidad al proxy de finalización curricular estimada (avance >= 90%).
 
-Responde a la observación del jurado (Q3 / prioridad 1.2): la graduación se
-aproxima con una FOTOGRAFÍA ÚNICA del avance curricular (no historizada), por lo
-que la exclusión de graduados no es estrictamente punto en el tiempo y podría
-suprimir retrospectivamente etiquetas de abandono. Se cuantifica el efecto
-comparando dos definiciones de la etiqueta dropout_next:
+Responde a la observación del jurado (Q3 / prioridad 1.2): la finalización
+curricular se estima con una FOTOGRAFÍA ÚNICA del avance curricular (no
+historizada), por lo que la exclusión por finalización estimada no es
+estrictamente punto en el tiempo y podría suprimir retrospectivamente etiquetas
+de abandono. Se cuantifica el efecto comparando dos definiciones de la etiqueta
+dropout_next:
 
-  - CON exclusión de graduados (definición actual del sistema): un legajo con
-    avance >= 90% nunca recibe etiqueta de abandono.
-  - SIN exclusión de graduados: la etiqueta se decide solo por la actividad futura.
+  - CON exclusión por finalización estimada (definición actual del sistema): un
+    legajo con avance >= 90% nunca recibe etiqueta de abandono.
+  - SIN exclusión: la etiqueta se decide solo por la actividad futura.
 
 Se reconstruyen ambas etiquetas a partir de la grilla de actividad por período
 (idéntica lógica de ventana que marts/student_panel.sql: censura estricta a 4
@@ -89,7 +90,7 @@ def main():
             CASE WHEN trim(porcentaje_avance) ~ '^\\d+([.,]\\d+)?$'
                  THEN replace(trim(porcentaje_avance), ',', '.')::numeric ELSE NULL END, 0) >= 90
     """), engine)
-    graduados = set(grad["legajo"].astype(str))
+    finalizacion_estimada = set(grad["legajo"].astype(str))
 
     # Panel con features (la etiqueta dropout_next del sistema = CON exclusión)
     df = pd.read_sql("SELECT * FROM marts.student_panel", engine)
@@ -109,7 +110,7 @@ def main():
             lab_grad.append(0); lab_nograd.append(0)
         else:
             lab_nograd.append(1)
-            lab_grad.append(0 if legajo in graduados else 1)
+            lab_grad.append(0 if legajo in finalizacion_estimada else 1)
     df["lab_con_grad"] = lab_grad
     df["lab_sin_grad"] = lab_nograd
 
@@ -123,20 +124,20 @@ def main():
     r_sin = evaluate(df, "lab_sin_grad")
     res = pd.DataFrame([r_con, r_sin])
     pd.set_option("display.width", 220, "display.max_columns", 30)
-    print("=== (C) Sensibilidad al proxy de graduación ===")
+    print("=== (C) Sensibilidad al proxy de finalización curricular estimada ===")
     print(res.to_string(index=False))
 
-    # Reclasificación: filas/estudiantes que pasan de 0 (graduado) a 1 (abandono)
+    # Reclasificación: filas/estudiantes que pasan de 0 (finalización estimada) a 1 (abandono)
     both = df[(df.at_risk == 1) & df["lab_con_grad"].notna()]
     flipped = both[(both["lab_con_grad"] == 0) & (both["lab_sin_grad"] == 1)]
-    print(f"\nFilas reclasificadas (0→1 al quitar la exclusión por graduación): "
+    print(f"\nFilas reclasificadas (0→1 al quitar la exclusión por finalización estimada): "
           f"{len(flipped):,} de {len(both):,} ({len(flipped)/len(both)*100:.2f}%)")
     print(f"Estudiantes (legajos) afectados: {flipped['legajo'].nunique():,}")
     d_auc = r_sin["auc"] - r_con["auc"]
     d_prev = r_sin["prevalencia_test"] - r_con["prevalencia_test"]
     print(f"\nΔ AUC (sin − con) = {d_auc:+.4f} | Δ prevalencia test = {d_prev:+.4f}")
     print("Interpretación: una diferencia pequeña ACOTA empíricamente el sesgo "
-          "introducido por el proxy de graduación.")
+          "introducido por el proxy de finalización curricular estimada.")
 
     with engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS predictions"))

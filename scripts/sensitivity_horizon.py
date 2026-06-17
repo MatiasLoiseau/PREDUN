@@ -20,7 +20,7 @@ las 29 carreras de grado y tecnicatura):
          datos -> el estudiante NO retomó dentro de la ventana observada (censura).
 
   3. Para cada horizonte H ∈ {2,3,4,6}:
-       - abandonos (trailing >= H, sin graduación) = legajos que estarían en
+       - abandonos (trailing >= H, sin finalización estimada) = legajos que estarían en
          estado de abandono al cierre de los datos bajo ese horizonte.
        - tasa de reactivación = huecos internos >= H / (internos >= H + trailing >= H):
          fracción de las inactividades de al menos H períodos que resultaron
@@ -95,11 +95,11 @@ def main():
             CASE WHEN trim(porcentaje_avance) ~ '^\\d+([.,]\\d+)?$'
                  THEN replace(trim(porcentaje_avance), ',', '.')::numeric ELSE NULL END, 0) >= 90
     """), engine)
-    graduados = set(grad["legajo"].astype(str))
+    finalizacion_estimada = set(grad["legajo"].astype(str))
 
     data_max = int(act["pidx"].max())
     print(f"Período máximo en datos: {pidx_to_label(data_max)} (pidx={data_max})")
-    print(f"Legajos con actividad: {act['legajo'].nunique():,} | graduados (avance>=90%): {len(graduados):,}")
+    print(f"Legajos con actividad: {act['legajo'].nunique():,} | finalización estimada (avance>=90%): {len(finalizacion_estimada):,}")
 
     # Por legajo: lista ordenada de períodos con actividad y sus huecos
     internal_gaps = []          # longitudes de huecos internos (estudiante retomó)
@@ -120,18 +120,18 @@ def main():
     rows = []
     for H in HORIZONS:
         n_internal_geH = int((internal_gaps >= H).sum())
-        # abandono al cierre: trailing >= H y no graduado
+        # abandono al cierre: trailing >= H y sin finalización estimada
         trailing_legajos = trailing[trailing >= H].index
         n_trailing_geH = len(trailing_legajos)
-        n_abandono = sum(1 for lg in trailing_legajos if lg not in graduados)
-        n_grad_excl = n_trailing_geH - n_abandono
+        n_abandono = sum(1 for lg in trailing_legajos if lg not in finalizacion_estimada)
+        n_finaliz_excl = n_trailing_geH - n_abandono
         denom = n_internal_geH + n_trailing_geH
         reactivacion = n_internal_geH / denom if denom else float("nan")
         rows.append(dict(
             horizonte_periodos=H,
             anios=H / 2,
             abandono_legajos=n_abandono,
-            graduados_excluidos=n_grad_excl,
+            finalizacion_excluida=n_finaliz_excl,
             inactividades_internas_geH=n_internal_geH,
             inactividades_finales_geH=n_trailing_geH,
             tasa_reactivacion=round(reactivacion, 4),
