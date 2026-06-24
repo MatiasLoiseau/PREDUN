@@ -247,7 +247,7 @@ The training asset accepts two optional config parameters:
 | `train_sample_frac` | `0.15` | Fraction of training data to use. `0.15` ≈ dev mode (~2 min). `1.0` = full run (~40-50 min). |
 | `n_estimators` | `30` | Number of estimators for GBM and RandomForest. `30` = dev. `100` = full run. |
 
-**Dev run** (default — fast, for testing):
+**Dev run** ( fast, for testing):
 
 ```yaml
 ops:
@@ -257,7 +257,7 @@ ops:
       n_estimators: 30
 ```
 
-**Full run** (for the final thesis results):
+**Full run** (default - for the final thesis results):
 
 ```yaml
 ops:
