@@ -29,12 +29,37 @@ def _conda_bin() -> str:
     return os.environ.get("CONDA_EXE") or shutil.which("conda") or "conda"
 
 
+def _git_commit():
+    """Hash del commit del repo PREDUN y estado del árbol de trabajo.
+
+    Permite trazar en MLflow con qué versión exacta del código se entrenó cada
+    modelo. Devuelve (hash, dirty): dirty="true" indica que había cambios sin
+    commitear en el momento del entrenamiento, por lo que el hash no identifica
+    de forma exacta el código ejecutado.
+    """
+    repo_dir = os.environ.get("REPO_FOLDER") or os.path.dirname(os.path.abspath(__file__))
+    try:
+        commit = subprocess.run(
+            ["git", "-C", repo_dir, "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "-C", repo_dir, "status", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+        ).stdout.strip()
+        return (commit or "unknown", "true" if dirty else "false")
+    except Exception:
+        return ("unknown", "unknown")
+
+
 # ── Script de entrenamiento multi-modelo ──────────────────────────────────────
 
 def run_multi_model_training_in_conda_env(
     context: AssetExecutionContext,
     train_sample_frac: float,
     n_estimators: int,
+    git_commit: str,
+    git_dirty: str,
 ) -> dict:
     """
     Ejecuta el entrenamiento de los 3 modelos candidatos en el entorno eda-predun.
@@ -72,6 +97,8 @@ mlflow.set_tracking_uri("http://localhost:8002")
 mlflow.set_experiment("student_dropout_prediction")
 
 PG_URI = "{pg_uri}"
+GIT_COMMIT = "{git_commit}"
+GIT_DIRTY  = "{git_dirty}"
 engine = create_engine(PG_URI)
 
 # Horizonte de la etiqueta dropout_next (mira 4 períodos al futuro; ver
@@ -191,6 +218,8 @@ for model_name, clf in model_candidates:
         mlflow.set_tag("model_name",       model_name)
         mlflow.set_tag("train_cutoff",     TRAIN_CUTOFF)
         mlflow.set_tag("data_version",     cycle_period)
+        mlflow.set_tag("git_commit",       GIT_COMMIT)
+        mlflow.set_tag("git_dirty",        GIT_DIRTY)
 
         mlflow.log_param("classifier",            model_name)
         mlflow.log_param("train_size",            X_train.shape[0])
@@ -294,6 +323,8 @@ client.set_tag(best["run_id"], "version_label",         version_label)
 
 client.set_model_version_tag("student_dropout_model", str(mv.version), "data_version", cycle_period)
 client.set_model_version_tag("student_dropout_model", str(mv.version), "thesis_run",   "true")
+client.set_model_version_tag("student_dropout_model", str(mv.version), "git_commit",   GIT_COMMIT)
+client.set_model_version_tag("student_dropout_model", str(mv.version), "git_dirty",    GIT_DIRTY)
 
 print(f"  Registrado como student_dropout_model v{{mv.version}}")
 print(f"  Tags automáticos: data_version={{cycle_period}}, staging_periods={{staging_periods}}")
@@ -447,9 +478,12 @@ def train_student_dropout_model(context: AssetExecutionContext):
     train_sample_frac = context.op_config["train_sample_frac"]
     n_estimators      = context.op_config["n_estimators"]
 
+    git_commit, git_dirty = _git_commit()
+
     context.log.info(
         f"Config: train_sample_frac={train_sample_frac}, n_estimators={n_estimators}"
     )
+    context.log.info(f"Código PREDUN: commit {git_commit} (dirty={git_dirty})")
 
     with context.resources.mlflow_monitoring.track_job(
         job_name="train_student_dropout_model",
@@ -458,6 +492,8 @@ def train_student_dropout_model(context: AssetExecutionContext):
             "mode":              "multi_model",
             "train_sample_frac": str(train_sample_frac),
             "n_estimators":      str(n_estimators),
+            "git_commit":        git_commit,
+            "git_dirty":         git_dirty,
         },
     ):
         context.log.info("Iniciando entrenamiento multi-modelo")
@@ -465,6 +501,8 @@ def train_student_dropout_model(context: AssetExecutionContext):
             context,
             train_sample_frac=train_sample_frac,
             n_estimators=n_estimators,
+            git_commit=git_commit,
+            git_dirty=git_dirty,
         )
 
         if "roc_auc" in result:
