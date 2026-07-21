@@ -577,7 +577,15 @@ if len(student_panel) == 0:
     print("Sin datos de panel para activos — saliendo")
     exit(0)
 
-df = student_panel.groupby("legajo").first().reset_index()
+# Fila más reciente por legajo (la consulta ya ordena por academic_period DESC).
+# NO usar groupby(...).first(): devuelve el primer valor NO NULO de cada columna por
+# separado, no la primera fila. Como nota_media_en_periodo, nota_win3, promo_rate_period
+# y promo_rate_win3 son NULL cuando el estudiante no cursó en el período, .first() las
+# rellenaba con valores de períodos anteriores y armaba una fila híbrida (conteos del
+# período reciente + notas/tasas de períodos viejos). En entrenamiento esos NULL llegan
+# como NaN al SimpleImputer, así que el scoring aplicaba una transformación distinta:
+# training-serving skew. Ver issue #5.
+df = student_panel.groupby("legajo", sort=False).head(1).reset_index(drop=True)
 print(f"{{len(df)}} registros más recientes para scoring")
 
 NUM_COLS = [
