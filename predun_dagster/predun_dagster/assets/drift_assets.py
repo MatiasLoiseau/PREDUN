@@ -32,7 +32,7 @@ from ..drift_utils import (
     drift_summary,
 )
 
-# promo_rate_period y promo_rate_win3 ya están incluidas en FEATURES_NUM de drift_utils
+# aprob_rate_period y aprob_rate_win3 ya están incluidas en FEATURES_NUM de drift_utils
 ALL_FEATURES_NUM = FEATURES_NUM
 
 DRIFT_EXPERIMENT = "drift_monitoring"
@@ -56,17 +56,24 @@ CREATE TABLE IF NOT EXISTS predictions.drift_metrics (
 
 
 def _load_panel(engine) -> pd.DataFrame:
-    """Carga las filas en riesgo de student_panel y calcula las features derivadas.
+    """Carga las filas en riesgo de student_panel.
 
     Se restringe a at_risk = 1 para que la comparación de drift opere sobre la
     misma población que el entrenamiento y el scoring (estudiantes no abandonados
     al período t). Las filas con etiqueta censurada (dropout_next NULL) se incluyen:
     sus features cuentan para el drift de covariables y el PSI del label descarta
     los NULL internamente.
+
+    Las tasas derivadas (aprob_rate_period, aprob_rate_win3) y materias_cum se
+    LEEN de la tabla; antes se recalculaban acá, lo que duplicaba la definición
+    fuera de dbt. Aunque la fórmula coincidiera, mantener una sola definición en
+    la capa de transformación es la garantía de que drift, entrenamiento y
+    scoring midan lo mismo.
     """
     NUM_COLS = [
-        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-        "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
+        "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad",
+        "aprob_rate_period", "aprob_rate_win3", "materias_cum",
     ]
     df = pd.read_sql(
         "SELECT * FROM marts.student_panel WHERE at_risk = 1",
@@ -74,9 +81,6 @@ def _load_panel(engine) -> pd.DataFrame:
     )
     df = df.drop_duplicates()
     df[NUM_COLS] = df[NUM_COLS].apply(pd.to_numeric, errors="coerce")
-    import numpy as np
-    df["promo_rate_period"] = df["promo_en_periodo"] / df["materias_en_periodo"].replace(0, np.nan)
-    df["promo_rate_win3"]   = df["promo_win3"]       / df["materias_win3"].replace(0, np.nan)
     return df
 
 

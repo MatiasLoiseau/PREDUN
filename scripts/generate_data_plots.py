@@ -24,6 +24,16 @@ PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
 # Corte de entrenamiento con embargo de maduración (VAL_PERIOD - 4) del ciclo
 # final; aquí se usa solo para etiquetar descriptivamente train vs. post-train.
 TRAIN_CUTOFF = "2021_1C"
+
+# predictions.student_dropout_predictions es APPEND-ONLY: cada scoring agrega un
+# lote completo de la cohorte activa, con un mismo prediction_date para todo el
+# lote. Sin este filtro la figura de distribución de probabilidades superpone
+# corridas de distintos ciclos y versiones de modelo (al 2026-07: 81.408 filas de
+# 4 corridas frente a una cohorte activa de 19.927).
+LATEST_SCORING = (
+    "prediction_date = (SELECT max(prediction_date) "
+    "FROM predictions.student_dropout_predictions)"
+)
 THESIS_FIGS_DIR = (
     "/Users/matiasloiseau/Library/CloudStorage/Dropbox/ITBA/tesis/informe/figs/chapter4"
 )
@@ -261,10 +271,10 @@ def plot_panel_composition(student_panel, out_dir):
 def plot_feature_distributions(student_panel, out_dir):
     cols_config = [
         ("materias_en_periodo",    "Materias cursadas\npor período"),
-        ("promo_en_periodo",       "Materias aprobadas\npor período"),
+        ("aprob_en_periodo",       "Materias aprobadas\npor período"),
         ("nota_media_en_periodo",  "Nota media\npor período"),
         ("materias_win3",          "Materias cursadas\n(ventana 4 períodos)"),
-        ("promo_win3",             "Materias aprobadas\n(ventana 4 períodos)"),
+        ("aprob_win3",             "Materias aprobadas\n(ventana 4 períodos)"),
         ("nota_win3",              "Nota media\n(ventana 4 períodos)"),
     ]
     existing = [(col, label) for col, label in cols_config if col in student_panel.columns]
@@ -368,15 +378,15 @@ def plot_dropout_by_carrera(student_panel, out_dir, top_n=20):
 # ── 6. Correlación de features con la variable objetivo ──────────────────────
 def plot_feature_correlation(student_panel, out_dir):
     num_cols = [
-        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-        "materias_win3", "promo_win3", "nota_win3",
+        "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "aprob_win3", "nota_win3",
     ]
     labels_es = {
         "materias_en_periodo":    "Materias cursadas (período)",
-        "promo_en_periodo":       "Materias aprobadas (período)",
+        "aprob_en_periodo":       "Materias aprobadas (período)",
         "nota_media_en_periodo":  "Nota media (período)",
         "materias_win3":          "Materias cursadas (ventana 4p)",
-        "promo_win3":             "Materias aprobadas (ventana 4p)",
+        "aprob_win3":             "Materias aprobadas (ventana 4p)",
         "nota_win3":              "Nota media (ventana 4p)",
     }
     existing = [c for c in num_cols if c in student_panel.columns]
@@ -421,7 +431,8 @@ def plot_prediction_distribution(engine, out_dir):
     try:
         pred_df = pd.read_sql(
             "SELECT dropout_probability, dropout_prediction "
-            "FROM predictions.student_dropout_predictions",
+            "FROM predictions.student_dropout_predictions "
+            f"WHERE {LATEST_SCORING}",
             engine,
         )
     except Exception:
@@ -523,15 +534,15 @@ def print_text_summary(student_status, student_panel, engine):
     print(f"\n  3. Estadísticas de features numéricas (períodos con actividad > 0):")
     print(HR)
     num_cols = [
-        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-        "materias_win3", "promo_win3", "nota_win3",
+        "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "aprob_win3", "nota_win3",
     ]
     labels = {
         "materias_en_periodo":   "Materias cursadas (período)",
-        "promo_en_periodo":      "Materias aprobadas (período)",
+        "aprob_en_periodo":      "Materias aprobadas (período)",
         "nota_media_en_periodo": "Nota media (período)",
         "materias_win3":         "Materias cursadas (ventana 4p)",
-        "promo_win3":            "Materias aprobadas (ventana 4p)",
+        "aprob_win3":            "Materias aprobadas (ventana 4p)",
         "nota_win3":             "Nota media (ventana 4p)",
     }
     print(f"  {'Feature':<30}  {'n>0':>7}  {'Media':>7}  {'Mediana':>8}  {'Std':>7}  {'p90':>7}")
@@ -592,8 +603,8 @@ def print_text_summary(student_status, student_panel, engine):
     print(f"\n  6. Correlaciones de Pearson con dropout_next:")
     print(HR)
     cols_corr = [
-        "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-        "materias_win3", "promo_win3", "nota_win3",
+        "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+        "materias_win3", "aprob_win3", "nota_win3",
     ]
     df_corr = student_panel[cols_corr + ["dropout_next"]].dropna()
     corr    = df_corr[cols_corr].corrwith(df_corr["dropout_next"]).sort_values()
@@ -605,7 +616,9 @@ def print_text_summary(student_status, student_panel, engine):
     # 7. Predicciones si están disponibles
     try:
         pred_df = pd.read_sql(
-            "SELECT dropout_probability, dropout_prediction FROM predictions.student_dropout_predictions",
+            "SELECT dropout_probability, dropout_prediction "
+            "FROM predictions.student_dropout_predictions "
+            f"WHERE {LATEST_SCORING}",
             engine,
         )
         if not pred_df.empty:

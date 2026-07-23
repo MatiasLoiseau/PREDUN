@@ -235,19 +235,25 @@ CREATE TABLE IF NOT EXISTS marts.student_status (
     inserted_at          TIMESTAMPTZ DEFAULT now()
 );
 
-create table marts.student_panel (
-    legajo                    integer          not null,
-    cod_carrera               varchar(10)      not null,
-    academic_period           varchar(8)       not null,
-    materias_en_periodo       integer          not null,
-    promo_en_periodo          integer          not null,
-    nota_media_en_periodo     numeric(5,2),
-    materias_win3             integer          not null,
-    promo_win3                integer          not null,
-    nota_win3                 numeric(5,2),
-    dias_desde_ult_periodo    integer,
-    dropout_next              integer          not null
-);
+-- REFERENCIA. marts.student_panel la materializa dbt (models/marts/student_panel.sql);
+-- este bloque documenta el esquema resultante, no se ejecuta para crearla.
+-- create table marts.student_panel (
+--     legajo                    text,
+--     cod_carrera               text,
+--     academic_period           text,
+--     materias_en_periodo       integer,
+--     aprob_en_periodo          integer,   -- materias con cursada aprobada
+--     nota_media_en_periodo     numeric,
+--     materias_win3             integer,
+--     aprob_win3                integer,
+--     nota_win3                 numeric,
+--     materias_cum              integer,
+--     aprob_rate_period         numeric,   -- NULL si no cursó en el período
+--     aprob_rate_win3           numeric,
+--     dias_desde_ult_actividad  integer,
+--     at_risk                   integer,   -- conjunto de riesgo
+--     dropout_next              integer    -- NULL = censurada
+-- );
 
 CREATE SCHEMA IF NOT EXISTS predictions;
 

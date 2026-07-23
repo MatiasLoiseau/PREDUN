@@ -58,22 +58,22 @@ VERSION_LABELS = {
 }
 
 NUM_COLS = [
-    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
+    "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
-FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_NUM = NUM_COLS + ["aprob_rate_period", "aprob_rate_win3", "materias_cum"]
 FEATURE_COLS_CAT = ["cod_carrera"]
 
 FEATURE_NAMES_ES = {
     "materias_en_periodo":   "Materias cursadas (período)",
-    "promo_en_periodo":      "Materias promocionadas (período)",
+    "aprob_en_periodo":      "Materias aprobadas (período)",
     "nota_media_en_periodo": "Nota media (período)",
     "materias_win3":         "Materias cursadas (ventana 4p)",
-    "promo_win3":            "Materias promocionadas (ventana 4p)",
+    "aprob_win3":            "Materias aprobadas (ventana 4p)",
     "nota_win3":             "Nota media (ventana 4p)",
     "dias_desde_ult_actividad": "Días desde últ. actividad",
-    "promo_rate_period":     "Tasa promoción (período)",
-    "promo_rate_win3":       "Tasa promoción (ventana 4p)",
+    "aprob_rate_period":     "Tasa de aprobación (período)",
+    "aprob_rate_win3":       "Tasa de aprobación (ventana 4p)",
     "materias_cum":          "Materias acumuladas",
 }
 
@@ -127,7 +127,7 @@ def load_validation_data():
         engine,
     )
     df = df.drop_duplicates()
-    # Las features derivadas (promo_rate_*, materias_cum) ya vienen calculadas
+    # Las features derivadas (aprob_rate_*, materias_cum) ya vienen calculadas
     # desde dbt en el panel — se leen, no se recomputan (evita el training-serving skew).
     df[FEATURE_COLS_NUM] = df[FEATURE_COLS_NUM].apply(pd.to_numeric, errors="coerce")
     df["dropout_next"] = df["dropout_next"].astype(int)

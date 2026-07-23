@@ -42,7 +42,7 @@ TEST_PERIOD = "2023_1C"
 TRAIN_CUTOFF = shift_period(TEST_PERIOD, LABEL_HORIZON)   # 2021_1C
 
 RECENCY_IMMEDIATE = ["dias_desde_ult_actividad", "materias_en_periodo",
-                     "promo_en_periodo", "nota_media_en_periodo"]
+                     "aprob_en_periodo", "nota_media_en_periodo"]
 
 
 def build(num, cat, clf):

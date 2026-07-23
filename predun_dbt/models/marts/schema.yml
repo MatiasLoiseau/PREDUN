@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: student_panel
+    description: >
+      Panel longitudinal (legajo, período académico) con features de trayectoria
+      y etiqueta prospectiva de abandono. Entrada del pipeline de ML.
+    columns:
+      - name: legajo
+        tests:
+          - not_null
+
+      - name: academic_period
+        tests:
+          - not_null
+
+      - name: at_risk
+        description: 1 si el legajo tuvo actividad en los 4 períodos que terminan en t.
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+
+      - name: dropout_next
+        description: >
+          Etiqueta prospectiva. NULL = censurada (ventana futura de 4 períodos
+          incompleta). No lleva not_null: la censura es parte del diseño.
+        tests:
+          - accepted_values:
+              values: [0, 1]
+              quote: false
+              config:
+                where: "dropout_next is not null"
+
+      - name: aprob_en_periodo
+        description: >
+          Materias con cursada aprobada en el período (macro resultado_aprobado).
+          Reemplaza a promo_en_periodo, que contaba solo 'Promocionó' y no era
+          comparable a ambos lados del cambio de vocabulario de 2021_1C.
+        tests:
+          - not_null
+
+      - name: materias_en_periodo
+        tests:
+          - not_null
+
+    tests:
+      # El grano del panel es (legajo, período): una fila por estudiante-período.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - legajo
+            - academic_period
+
+  - name: student_status
+    description: Estado académico vigente por legajo, anclado a max(fecha) de los datos.
+    columns:
+      - name: legajo
+        tests:
+          - not_null
+          - unique
+      - name: status
+        tests:
+          - accepted_values:
+              values: ['estudiando', 'abandonó', 'finalizacion_estimada']

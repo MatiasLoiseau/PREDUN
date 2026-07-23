@@ -41,6 +41,19 @@
       es decir, si NO se encuentra ya en estado de abandono según la regla de 2 años.
       Entrenamiento y scoring se restringen a at_risk = 1.
 
+  Features de aprobación (aprob_*):
+    - Miden materias con la CURSADA APROBADA, no promoción directa. El predicado
+      está en el macro `resultado_aprobado()` (Promocionó ∪ Regular).
+    - Antes eran promo_* y contaban solo 'Promocionó'. Ese conteo NO es
+      comparable a ambos lados de 2021_1C: en ese período la registración de
+      UNDAV cambió el vocabulario de `resultado` e intercambió las categorías por
+      pares (Promocionó↔Regular, Abandonó↔Libre), dejando los agregados
+      invariantes. El resultado era una deriva medida de PSI 0,84 que se
+      interpretaba como fenómeno del dominio y era un artefacto de registración.
+      Con la definición actual la deriva de estas features desaparece
+      (media 0,515 antes del corte vs 0,492 después). Ver el macro para la
+      evidencia completa.
+
   Calendario dinámico: cada trayectoria comienza en su primer período con
   actividad y se extiende hasta el último período con actividad en
   canonical.cursada_historica.
@@ -204,7 +217,7 @@ cursadas_periodo as (
         legajo,
         concat(anio, '_', tipo_cursada)                            as academic_period,
         count(*)                                                   as materias_en_periodo,
-        sum(case when resultado ilike 'Promoc%' then 1 else 0 end) as promo_en_periodo,
+        sum(case when {{ resultado_aprobado() }} then 1 else 0 end) as aprob_en_periodo,
         avg(nullif(nota, '')::numeric)                             as nota_media_en_periodo
     from {{ ref('cursada_historica') }}
     group by 1, 2
@@ -221,25 +234,25 @@ panel_raw as (
 
         /* ---------- features dentro del período ---------- */
         coalesce(cp.materias_en_periodo, 0) as materias_en_periodo,
-        coalesce(cp.promo_en_periodo,    0) as promo_en_periodo,
+        coalesce(cp.aprob_en_periodo,    0) as aprob_en_periodo,
         cp.nota_media_en_periodo,
 
         /* ---------- ventana móvil de 4 períodos ---------- */
         sum(coalesce(cp.materias_en_periodo, 0)) over w as materias_win3,
-        sum(coalesce(cp.promo_en_periodo,    0)) over w as promo_win3,
+        sum(coalesce(cp.aprob_en_periodo,    0)) over w as aprob_win3,
         avg(cp.nota_media_en_periodo)            over w as nota_win3,
 
         /* ---------- progreso acumulado (calculado en dbt, no en Python) ---------- */
         sum(coalesce(cp.materias_en_periodo, 0)) over wcum as materias_cum,
 
-        /* ---------- tasas de promoción normalizadas (en dbt) ---------- */
+        /* ---------- tasas de aprobación de cursada normalizadas (en dbt) ---------- */
         case when coalesce(cp.materias_en_periodo, 0) > 0
-             then cp.promo_en_periodo::numeric / cp.materias_en_periodo
-             else null end                       as promo_rate_period,
+             then cp.aprob_en_periodo::numeric / cp.materias_en_periodo
+             else null end                       as aprob_rate_period,
         case when sum(coalesce(cp.materias_en_periodo, 0)) over w > 0
-             then sum(coalesce(cp.promo_en_periodo, 0)) over w::numeric
+             then sum(coalesce(cp.aprob_en_periodo, 0)) over w::numeric
                   / sum(coalesce(cp.materias_en_periodo, 0)) over w
-             else null end                       as promo_rate_win3,
+             else null end                       as aprob_rate_win3,
 
         /* ---------- recencia institucional: días desde el último período
                       con actividad del legajo (en cualquier carrera) ---------- */
@@ -269,14 +282,14 @@ select
     cod_carrera,
     academic_period,
     materias_en_periodo,
-    promo_en_periodo,
+    aprob_en_periodo,
     nota_media_en_periodo,
     materias_win3,
-    promo_win3,
+    aprob_win3,
     nota_win3,
     materias_cum,
-    promo_rate_period,
-    promo_rate_win3,
+    aprob_rate_period,
+    aprob_rate_win3,
     dias_desde_ult_actividad,
     at_risk,
     dropout_next

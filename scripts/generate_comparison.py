@@ -60,10 +60,10 @@ COLORS = {
 MARKERS = {"2024_2C": "o", "2025_1C": "s", "2025_2C": "^"}
 
 NUM_COLS = [
-    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
+    "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
-FEATURE_COLS_NUM = NUM_COLS + ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+FEATURE_COLS_NUM = NUM_COLS + ["aprob_rate_period", "aprob_rate_win3", "materias_cum"]
 FEATURE_COLS_CAT = ["cod_carrera"]
 
 

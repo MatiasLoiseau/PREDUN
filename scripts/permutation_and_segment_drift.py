@@ -9,7 +9,7 @@ Responde a dos observaciones del jurado:
       que es un estimador del efecto sobre el desempeño y no del split.
 
   2.8: el análisis de deriva global puede ocultar deriva localizada. Se calcula
-       el PSI de una feature de promoción (alta deriva global) y de la variable
+       el PSI de una feature de aprobación de cursada y de la variable
        objetivo DENTRO de segmentos (sexo, cohorte de ingreso) para mostrar si la
        deriva es uniforme o concentrada en subpoblaciones.
 
@@ -141,7 +141,7 @@ def main():
             rl = r[r["dropout_next"].notna()]; cl = c[c["dropout_next"].notna()]
             seg_rows.append(dict(
                 segmento=f"{attr}={val}", n_ref=len(r), n_act=len(c),
-                psi_promo_rate_win3=round(psi_continuous(r["promo_rate_win3"], c["promo_rate_win3"]), 3),
+                psi_aprob_rate_win3=round(psi_continuous(r["aprob_rate_win3"], c["aprob_rate_win3"]), 3),
                 psi_dias=round(psi_continuous(r["dias_desde_ult_actividad"], c["dias_desde_ult_actividad"]), 3),
                 psi_dropout_next=round(psi_binary(rl["dropout_next"].astype(int),
                                                   cl["dropout_next"].astype(int)), 3),

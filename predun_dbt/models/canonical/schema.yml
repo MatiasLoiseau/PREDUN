@@ -1,0 +1,76 @@
+version: 2
+
+models:
+  - name: cursada_historica
+    description: >
+      Historial de cursadas de las 29 carreras del universo analítico, una fila
+      por EVENTO académico. Deduplica entre entregas (snapshot más reciente) y
+      dentro de la entrega (evento_hash). Ver el encabezado del modelo.
+    columns:
+      - name: evento_hash
+        description: >
+          Clave del evento académico: hash sobre los campos de negocio SIN los
+          metadatos del acta (nro_acta, origen, fecha_vigencia). Es la PK.
+        tests:
+          - unique
+          - not_null
+
+      - name: row_hash
+        description: >
+          Clave del acta retenida para el evento. No es única a nivel de evento
+          cuando el mismo evento tiene varias actas; se conserva para auditoría.
+        tests:
+          - not_null
+
+      - name: legajo
+        tests:
+          - not_null
+
+      - name: n_actas
+        description: >
+          Cantidad de actas fuente que respaldan el evento. Vale 1 hasta 2020 y
+          típicamente 2 desde 2021_1C (par R/P).
+        tests:
+          - not_null
+
+      - name: origen
+        description: Origen del acta retenida. Se prefiere 'R' sobre 'P'.
+
+      - name: cod_carrera
+        tests:
+          - not_null
+          - accepted_values:
+              # El universo analítico son 29 carreras de grado y tecnicatura.
+              # Si aparece un código nuevo, el test falla y obliga a decidir de
+              # forma explícita si entra al alcance (macro allowed_carreras).
+              values: ['SA5','AB5','AF3','PT2','PT7','AF1','CA2','AB1','TA06','PT6',
+                       'TA1','SA2','PT8','CA1','CS2','AF0','CA4','PT1','SA1','CS0',
+                       'CS3','PT3','CS1','CS9','CS4','AB4','PT9','SA4','PT4']
+
+    tests:
+      # CONTROL PRINCIPAL — es el test que habría atrapado la duplicación R/P.
+      # La clave de negocio del evento debe ser única en la fuente de verdad.
+      # Con la surrogate key anterior (que incluía nro_acta y origen) este test
+      # habría fallado desde la entrega que contiene 2021_1C.
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - legajo
+            - cod_carrera
+            - cod_materia
+            - anio
+            - tipo_cursada
+            - nota
+            - fecha
+            - resultado
+
+  - name: alumnos
+    columns:
+      - name: legajo
+        tests:
+          - not_null
+
+  - name: porcentaje_avance
+    columns:
+      - name: legajo
+        tests:
+          - not_null

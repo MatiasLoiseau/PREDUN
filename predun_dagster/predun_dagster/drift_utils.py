@@ -26,14 +26,14 @@ EPSILON            = 1e-6   # evitar log(0) y división por cero
 # definición y siempre deriva, y cod_carrera que está acotado a 29 carreras estables)
 FEATURES_NUM = [
     "materias_en_periodo",
-    "promo_en_periodo",
+    "aprob_en_periodo",
     "nota_media_en_periodo",
     "materias_win3",
-    "promo_win3",
+    "aprob_win3",
     "nota_win3",
     "dias_desde_ult_actividad",
-    "promo_rate_period",
-    "promo_rate_win3",
+    "aprob_rate_period",
+    "aprob_rate_win3",
 ]
 FEATURES_CAT = ["cod_carrera"]
 LABEL_COL    = "dropout_next"

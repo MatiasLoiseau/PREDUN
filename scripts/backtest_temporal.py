@@ -13,7 +13,7 @@ por período de prueba:
   - Calibración: pendiente e intercepto de recalibración logística, ECE.
   - Precision@K / Recall@K sobre estudiantes únicos del período.
 
-Las features derivadas (materias_cum, promo_rate_*) se leen de marts.student_panel
+Las features derivadas (materias_cum, aprob_rate_*) se leen de marts.student_panel
 (calculadas en dbt), garantizando consistencia con entrenamiento y scoring.
 
 Uso:
@@ -46,9 +46,9 @@ THESIS_FIGS_DIR = (
 )
 PERIOD_COLORS = ["#1565C0", "#2E7D32", "#E65100", "#6A1B9A"]
 
-NUM = ["materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-       "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad"]
-DER = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+NUM = ["materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+       "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad"]
+DER = ["aprob_rate_period", "aprob_rate_win3", "materias_cum"]
 FEATURES_NUM = NUM + DER
 FEATURES_CAT = ["cod_carrera"]
 

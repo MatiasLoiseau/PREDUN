@@ -23,6 +23,17 @@ PG_URI = os.getenv("PG_URI", "postgresql://siu:siu@localhost:5432/postgres")
 TRAIN_CUTOFF = "2021_1C"
 REPORT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# predictions.student_dropout_predictions es APPEND-ONLY: cada scoring agrega un
+# lote completo de la cohorte activa, y todas las filas del lote comparten el
+# mismo prediction_date (el activo lo fija con un único pd.Timestamp.now()).
+# Leer la tabla entera mezcla corridas y versiones de modelo de distintos ciclos:
+# al 2026-07 acumulaba 81.408 filas de 4 corridas cuando la cohorte activa es de
+# 19.927 estudiantes. Toda lectura analítica se restringe al último lote.
+LATEST_SCORING = (
+    "prediction_date = (SELECT max(prediction_date) "
+    "FROM predictions.student_dropout_predictions)"
+)
+
 
 def separator(char="=", width=70):
     return char * width
@@ -397,7 +408,7 @@ def analyze_predictions(engine):
             return
 
         df = pd.read_sql(
-            """
+            f"""
             SELECT
                 dropout_probability,
                 dropout_prediction,
@@ -405,12 +416,14 @@ def analyze_predictions(engine):
                 academic_period,
                 prediction_date
             FROM predictions.student_dropout_predictions
+            WHERE {LATEST_SCORING}
             """,
             engine,
         )
 
         proba = df["dropout_probability"]
-        print(f"\n  Total predicciones   : {len(df):,}")
+        print(f"\n  Predicciones (último scoring): {len(df):,}")
+        print(f"  Filas acumuladas en la tabla  : {n:,}  (histórico de todas las corridas)")
         print(f"  Modelo versión       : {df['model_version'].iloc[0] if len(df) > 0 else 'N/A'}")
         print(f"  Período de datos     : {df['academic_period'].iloc[0] if len(df) > 0 else 'N/A'}")
         print(f"  Fecha predicción     : {df['prediction_date'].iloc[0] if len(df) > 0 else 'N/A'}")
@@ -437,13 +450,14 @@ def analyze_predictions(engine):
         # Por carrera
         try:
             by_carrera = pd.read_sql(
-                """
+                f"""
                 SELECT
                     p.cod_carrera,
                     COUNT(*) AS n,
                     AVG(dropout_probability) AS riesgo_promedio,
                     SUM(CASE WHEN dropout_probability >= 0.7 THEN 1 ELSE 0 END) AS alto_riesgo
                 FROM predictions.student_dropout_predictions p
+                WHERE {LATEST_SCORING}
                 GROUP BY p.cod_carrera
                 ORDER BY riesgo_promedio DESC
                 """,
@@ -689,8 +703,8 @@ def analyze_feature_stats(engine):
             f"""
             SELECT
                 academic_period,
-                materias_en_periodo, promo_en_periodo, nota_media_en_periodo,
-                materias_win3, promo_win3, nota_win3,
+                materias_en_periodo, aprob_en_periodo, nota_media_en_periodo,
+                materias_win3, aprob_win3, nota_win3,
                 dropout_next
             FROM marts.student_panel
             WHERE academic_period > '{TRAIN_CUTOFF}'
@@ -704,8 +718,8 @@ def analyze_feature_stats(engine):
             return
 
         num_cols = [
-            "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-            "materias_win3", "promo_win3", "nota_win3",
+            "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+            "materias_win3", "aprob_win3", "nota_win3",
         ]
 
         print(f"\n  Set de validación: {len(df):,} filas\n")

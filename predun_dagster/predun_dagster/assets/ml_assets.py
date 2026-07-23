@@ -114,13 +114,13 @@ def _shift_period(p, k):
     return str(n // 2) + "_" + str(n % 2 + 1) + "C"
 
 NUM_COLS = [
-    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
+    "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 # Features derivadas: ahora se calculan en dbt (student_panel) y se leen de la
 # tabla, garantizando que entrenamiento y scoring usen EXACTAMENTE la misma
 # definición (elimina el training-serving skew que tenía materias_cum).
-DERIVED_COLS = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+DERIVED_COLS = ["aprob_rate_period", "aprob_rate_win3", "materias_cum"]
 
 # ── Carga y preparación de datos ───────────────────────────────────────────────
 # Solo filas del conjunto de riesgo (estudiantes no abandonados al período t)
@@ -579,8 +579,8 @@ if len(student_panel) == 0:
 
 # Fila más reciente por legajo (la consulta ya ordena por academic_period DESC).
 # NO usar groupby(...).first(): devuelve el primer valor NO NULO de cada columna por
-# separado, no la primera fila. Como nota_media_en_periodo, nota_win3, promo_rate_period
-# y promo_rate_win3 son NULL cuando el estudiante no cursó en el período, .first() las
+# separado, no la primera fila. Como nota_media_en_periodo, nota_win3, aprob_rate_period
+# y aprob_rate_win3 son NULL cuando el estudiante no cursó en el período, .first() las
 # rellenaba con valores de períodos anteriores y armaba una fila híbrida (conteos del
 # período reciente + notas/tasas de períodos viejos). En entrenamiento esos NULL llegan
 # como NaN al SimpleImputer, así que el scoring aplicaba una transformación distinta:
@@ -589,15 +589,15 @@ df = student_panel.groupby("legajo", sort=False).head(1).reset_index(drop=True)
 print(f"{{len(df)}} registros más recientes para scoring")
 
 NUM_COLS = [
-    "materias_en_periodo", "promo_en_periodo", "nota_media_en_periodo",
-    "materias_win3", "promo_win3", "nota_win3", "dias_desde_ult_actividad",
+    "materias_en_periodo", "aprob_en_periodo", "nota_media_en_periodo",
+    "materias_win3", "aprob_win3", "nota_win3", "dias_desde_ult_actividad",
 ]
 # Features derivadas leídas de student_panel (idénticas a las de entrenamiento):
-# promo_rate_period, promo_rate_win3 y materias_cum se calculan en dbt.
+# aprob_rate_period, aprob_rate_win3 y materias_cum se calculan en dbt.
 # Antes materias_cum se recomputaba aquí con cumsum() sobre la fila más reciente
 # por estudiante, produciendo un acumulado ENTRE estudiantes sin sentido
 # (training-serving skew). Ahora se lee el valor correcto desde la tabla.
-DERIVED_COLS = ["promo_rate_period", "promo_rate_win3", "materias_cum"]
+DERIVED_COLS = ["aprob_rate_period", "aprob_rate_win3", "materias_cum"]
 df[NUM_COLS + DERIVED_COLS] = df[NUM_COLS + DERIVED_COLS].apply(pd.to_numeric, errors="coerce")
 
 FEATURE_COLS_NUM = NUM_COLS + DERIVED_COLS
