@@ -158,13 +158,18 @@ def main():
     ax1.set_xticks(x)
     for xi, v in zip(x, res["tasa_reactivacion"] * 100):
         ax1.text(xi, v + 0.6, f"{v:.1f}%", ha="center", fontsize=9, color="#B71C1C", fontweight="bold")
+    # Aire arriba para que la etiqueta de la primera barra (la más alta) no se
+    # solape con el título, y abajo para que la curva no toque el borde inferior.
+    react_pct = res["tasa_reactivacion"] * 100
+    ax1.set_ylim(react_pct.min() - 2.0, react_pct.max() + 3.0)
     ax2 = ax1.twinx()
     ax2.bar(x, res["abandono_legajos"], width=0.35, alpha=0.25, color="#1565C0",
             label="Legajos en abandono")
     ax2.set_ylabel("Legajos clasificados como abandono", color="#1565C0")
     ax2.tick_params(axis="y", labelcolor="#1565C0")
     ax1.axvline(4, color="gray", ls=":", lw=1.2)
-    ax1.set_title("Sensibilidad de la definición de abandono al horizonte de inactividad")
+    ax1.set_title("Sensibilidad de la definición de abandono al horizonte de inactividad",
+                  pad=12)
     fig.tight_layout()
     path = os.path.join(THESIS_FIGS_DIR, "sensitivity_horizon.png")
     fig.savefig(path); plt.close(fig)
