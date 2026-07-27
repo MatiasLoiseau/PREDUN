@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Stable Release](https://img.shields.io/badge/development-v0.3.1-brightgreen.svg)](https://github.com/your-repo/releases)
 
-PREDUN stands for "Predicción de Deserción Universitaria en UNDAV".
+PREDUN stands for "PREdicción Del abandono UNiversitario en la UNDAV".
 
 ---
 
