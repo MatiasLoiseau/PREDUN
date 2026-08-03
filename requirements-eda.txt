@@ -1,0 +1,41 @@
+# Entorno de machine learning de PREDUN (eda-predun)
+#
+# Es el entorno donde corren el entrenamiento, el scoring y los scripts de
+# analisis de scripts/. Esta separado del entorno de orquestacion
+# (dagster-predun, ver requirements-dagster.txt) porque necesitan versiones
+# distintas del interprete: Dagster corre sobre Python 3.9 y este entorno sobre
+# Python 3.12.
+#
+# Se listan las dependencias directas con la version exacta del entorno con el
+# que se produjeron los resultados de la tesis (julio de 2026). Las
+# dependencias transitivas las resuelve el instalador.
+#
+# Instalacion:
+#   conda create -n eda-predun python=3.12 -y
+#   conda activate eda-predun
+#   pip install -r requirements-eda.txt
+#
+# Para reproducir el entorno tal cual esta instalado hoy, incluidas las
+# dependencias transitivas y sus canales:
+#   conda env export -n eda-predun > environment-eda.lock.yml
+
+# --- Computo numerico y modelado ---
+numpy==2.3.1
+pandas==2.2.3
+scipy==1.15.3
+scikit-learn==1.7.1
+joblib==1.4.2
+
+# --- Tracking y registro de modelos ---
+mlflow==3.2.0
+
+# --- Acceso a PostgreSQL ---
+SQLAlchemy==2.0.43
+psycopg2-binary==2.9.10
+
+# --- Graficos de los scripts de analisis (scripts/*.py) ---
+matplotlib==3.10.0
+seaborn==0.13.2
+
+# --- Analisis exploratorio (exploratory_analysis/), opcional para el pipeline ---
+notebook==7.4.4

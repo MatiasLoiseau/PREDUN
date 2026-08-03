@@ -55,12 +55,50 @@ utils/                # Utility scripts
 
 ## Installation
 
+PREDUN uses **two separate conda environments**. The orchestration layer and the
+machine learning layer run on different Python interpreters, so they cannot share
+a single environment:
+
+| Environment | Python | Requirements file | What runs there |
+|---|---|---|---|
+| `dagster-predun` | 3.9 | `requirements-dagster.txt` | Dagster, dbt, the ingestion scripts |
+| `eda-predun` | 3.12 | `requirements-eda.txt` | Model training, scoring, the analysis scripts in `scripts/` |
+
+The ML assets in `predun_dagster/predun_dagster/assets/ml_assets.py` call the
+training and scoring scripts through `conda run -n eda-predun`, so both
+environments must exist before running the ML pipeline.
+
+### 1. Orchestration environment
+
 ```bash
 conda create -n dagster-predun python=3.9 -y
 conda activate dagster-predun
 pip install -r requirements-dagster.txt
 pip install -e .
 ```
+
+### 2. Machine learning environment
+
+```bash
+conda create -n eda-predun python=3.12 -y
+conda activate eda-predun
+pip install -r requirements-eda.txt
+```
+
+`requirements-eda.txt` pins the direct dependencies to the exact versions used to
+produce the thesis results. To capture the full environment (transitive
+dependencies and channels included) as a lock file:
+
+```bash
+conda env export -n eda-predun > environment-eda.lock.yml
+```
+
+> **Licensing note.** Conda itself and the `conda-forge` channel are free
+> software. The Anaconda Distribution and its `defaults` channel are not: their
+> terms of service require a paid license for organizations with more than 200
+> employees. Institutions replicating PREDUN should install
+> [Miniconda](https://docs.conda.io/projects/miniconda/) and use `conda-forge`.
+> Every package listed above is available on that channel.
 
 ## Environment Variables
 
