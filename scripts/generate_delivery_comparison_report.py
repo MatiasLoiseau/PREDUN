@@ -1,5 +1,5 @@
 """
-Reconciliación entre entregas institucionales (2024_2C, 2025_1C, 2025_2C).
+Comparación entre entregas institucionales (2024_2C, 2025_1C, 2025_2C).
 
 Segundo eje del monitoreo de datos, complementario del PSI intra-entrega que
 calcula el activo `detect_data_drift`. Aquel compara dos tramos de UNA MISMA foto
@@ -11,17 +11,17 @@ Reconstruye el panel de cada entrega desde las tablas archivadas por el pre_hook
 `archive_canonical_table` (canonical.*_history), replicando la lógica de
 predun_dbt/models/marts/student_panel.sql, y produce:
 
-  - Tabla 5.12  PSI entre entregas en dos ventanas (reconciliación / completa)
+  - Tabla 5.12  PSI entre entregas en dos ventanas (cerrada / completa)
   - Tabla 5.13  Perfil de la frontera de cada entrega
   - Tabla 5.14  Efecto de la frontera vacía sobre el nivel del scoring
   - Conciliación por conteo de eventos, con clave estable y con evento_hash
-  - Figura      reconciliacion_cobertura.png  (cobertura por período y entrega)
-  - Figura      reconciliacion_scoring.png    (efecto de la frontera vacía)
+  - Figura      comparacion_cobertura.png  (cobertura por período y entrega)
+  - Figura      comparacion_scoring.png    (efecto de la frontera vacía)
 
 Uso (desde /Users/matiasloiseau/Workspace/PREDUN/):
-    conda run -n eda-predun python scripts/generate_reconciliation_report.py
-    conda run -n eda-predun python scripts/generate_reconciliation_report.py --rebuild
-    conda run -n eda-predun python scripts/generate_reconciliation_report.py --no-figure
+    conda run -n eda-predun python scripts/generate_delivery_comparison_report.py
+    conda run -n eda-predun python scripts/generate_delivery_comparison_report.py --rebuild
+    conda run -n eda-predun python scripts/generate_delivery_comparison_report.py --no-figure
 
 La reconstrucción de los paneles tarda unos minutos. Se hace una sola vez y queda
 cacheada en el esquema `recon`; --rebuild fuerza rehacerla.
@@ -270,7 +270,7 @@ def load_panel(engine, entrega: str, at_risk_only: bool = True) -> pd.DataFrame:
 # ── 2. PSI entre entregas, en dos ventanas ────────────────────────────────────
 
 def psi_entre_entregas(paneles: dict) -> list:
-    """Tabla 5.12. Para cada par sucesivo, PSI en la ventana de reconciliación
+    """Tabla 5.12. Para cada par sucesivo, PSI en la ventana cerrada
     (períodos que ambas entregas dan por cerrados) y en la ventana completa."""
     filas = []
     for anterior, nueva in zip(ENTREGAS, ENTREGAS[1:]):
@@ -280,7 +280,7 @@ def psi_entre_entregas(paneles: dict) -> list:
 
         for etiqueta, r, c in [
             ("completa", ref, cur),
-            ("reconciliacion", ref[ref.academic_period <= ventana],
+            ("cerrada", ref[ref.academic_period <= ventana],
                                cur[cur.academic_period <= ventana]),
         ]:
             d = DU.compute_feature_drift(
@@ -290,7 +290,7 @@ def psi_entre_entregas(paneles: dict) -> list:
             filas.append({
                 "par": f"{anterior} -> {nueva}",
                 "ventana": etiqueta,
-                "hasta": ventana if etiqueta == "reconciliacion" else cur.academic_period.max(),
+                "hasta": ventana if etiqueta == "cerrada" else cur.academic_period.max(),
                 "n_ref": len(r), "n_cur": len(c),
                 "psi_max": float(top.psi_value),
                 "variable": top.feature_name if top.psi_value > 0 else None,
@@ -516,7 +516,7 @@ def plot_cobertura(piv: pd.DataFrame, frontera: list, out_dir: str) -> str:
               bbox_to_anchor=(0.005, -0.02))
 
     plt.tight_layout()
-    path = os.path.join(out_dir, "reconciliacion_cobertura.png")
+    path = os.path.join(out_dir, "comparacion_cobertura.png")
     plt.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -557,7 +557,7 @@ def plot_scoring(efecto: list, out_dir: str) -> str:
               bbox_to_anchor=(0.10, 1.0))
 
     plt.tight_layout()
-    path = os.path.join(out_dir, "reconciliacion_scoring.png")
+    path = os.path.join(out_dir, "comparacion_scoring.png")
     plt.savefig(path, dpi=220, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -649,7 +649,7 @@ def main(rebuild: bool, con_figura: bool):
         "efecto_frontera": [{k: v for k, v in e.items() if k != "_probs"} for e in efecto],
         "modelo_referencia": {"corte": TRAIN_CUTOFF, "n_train": n_train, **GBM_KWARGS},
     }
-    json_path = os.path.join(THESIS_FIGS_DIR, "reconciliacion_entregas.json")
+    json_path = os.path.join(THESIS_FIGS_DIR, "comparacion_entregas.json")
     with open(json_path, "w") as f:
         json.dump(salida, f, indent=2, default=str, ensure_ascii=False)
     print(f"  Métricas guardadas: {json_path}\n")
