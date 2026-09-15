@@ -1392,19 +1392,27 @@ order by horizonte_periodos;
 
 
 -- -----------------------------------------------------------------------------
--- C5.1  [CORREGIR]  tab:ablation
+-- C5.1  [OK]  tab:ablation
 --
--- Tres de las ocho celdas desvían. La del baseline es la más grande.
--- El texto que acompaña también dice "llega a un AUC de 0,914", que es 0,913.
+-- 2026-09-15 (dictamen G9): la variante "sin recencia inmediata" conservaba
+-- información de t (ventanas y materias_cum incluyen t, aprob_rate_period es
+-- NULL justo cuando no cursó). Se reemplazó por "solo hasta t-1" (lag de las
+-- ventanas, el acumulado y la carrera). Su AUC cae de 0,913 a 0,832. La
+-- Precision@10 ahora cuenta empates en el corte (el baseline daba 0,877 o 0,864
+-- según el orden de lectura). La cuarta cifra de "completo" varía entre corridas
+-- por el orden de las filas, también con el script anterior.
+-- Texto y tabla ya corregidos el 2026-09-15. auc_con_t1 excluye a los 2.965
+-- estudiantes que cursan por primera vez en 2023_1C (sin fila t-1).
 -- -----------------------------------------------------------------------------
-select variante, n_features, round(auc::numeric, 4) as auc, round(p_at_10::numeric, 4) as p_at_10
+select variante, n_features, round(auc::numeric, 4) as auc, round(p_at_10::numeric, 4) as p_at_10,
+       round(auc_con_t1::numeric, 4) as auc_con_t1
 from predictions.ablation_recency
 order by auc desc;
 -- variante                        tesis          base
--- completo                        0,930 / 0,953  0,9305 / 0,9548   OK
--- sin dias_desde_ult_actividad    0,927 / 0,938  0,9273 / 0,9362   OK
--- sin recencia inmediata          0,914 / 0,937  0,9132 / 0,9341   -> 0,913 / 0,934
--- baseline recencia               0,806 / 0,864  0,8064 / 0,8771   -> 0,806 / 0,877
+-- completo                        0,930 / 0,953  0,9304 / 0,9528   OK
+-- sin dias_desde_ult_actividad    0,927 / 0,938  0,9274 / 0,9375   OK
+-- solo hasta t-1                  0,832 / 0,904  0,8322 / 0,9039   OK (auc_con_t1 0,8544 -> "0,854")
+-- baseline recencia               0,806 / 0,855  0,8064 / 0,8554   OK (auc_con_t1 0,8421 -> "0,842")
 
 
 -- -----------------------------------------------------------------------------
@@ -1428,20 +1436,20 @@ order by dias;
 
 
 -- -----------------------------------------------------------------------------
--- C5.3  [CORREGIR]  tab:paired_auc
+-- C5.3  [OK]  tab:paired_auc
 --
--- Los tres deltas y sus seis extremos de intervalo desvían en la cuarta cifra.
--- Ojo con una inconsistencia interna: el texto dice "de 0,124 puntos", que sí
--- coincide con la base, mientras la tabla dice 0,1239.
+-- 2026-09-15 (dictamen G9): la fila "sin recencia inmediata" pasó a "solo hasta
+-- t-1" y la tabla se alineó con la base. El texto dice "0,124" y "0,098", que
+-- son los deltas redondeados.
 -- -----------------------------------------------------------------------------
 select comparacion, round(delta::numeric, 4) as delta,
        round(ci_low::numeric, 4) as ci_low, round(ci_high::numeric, 4) as ci_high, p_gt_0
 from predictions.delta_auc_paired
 order by delta desc;
--- comparación                       tesis                      base
--- completo − baseline recencia      0,1239 [0,1197; 0,1282]    0,1240 [0,1198; 0,1283]
--- completo − sin recencia inmediata 0,0168 [0,0155; 0,0181]    0,0173 [0,0160; 0,0187]
--- GBM − LogisticRegression          0,0043 [0,0035; 0,0050]    0,0044 [0,0036; 0,0052]
+-- comparación                       tesis (2026-09-15)         base
+-- completo − baseline recencia      0,1239 [0,1197; 0,1282]    0,1239 [0,1197; 0,1282]   OK
+-- completo − solo hasta t-1         0,0981 [0,0943; 0,1021]    0,0981 [0,0943; 0,1021]   OK
+-- GBM − LogisticRegression          0,0043 [0,0035; 0,0050]    0,0043 [0,0035; 0,0050]   OK
 
 
 -- -----------------------------------------------------------------------------

@@ -5,9 +5,11 @@ Responde a dos observaciones del jurado:
 
   D (Q6 / 2.4): ¿cuánta señal aporta el modelo POR ENCIMA de detectar que el
      estudiante ya dejó de cursar? Se compara el modelo completo contra el mismo
-     modelo (i) sin 'dias_desde_ult_actividad' y (ii) sin las features de recencia
-     inmediata (recencia + actividad del período corriente), dejando solo la
-     trayectoria de ventana/acumulada.
+     modelo (i) sin 'dias_desde_ult_actividad' y (ii) solo con información hasta
+     t−1: ventanas, acumulado y carrera tomados de la fila del período anterior,
+     sin ninguna variable del período corriente. Las ventanas y 'materias_cum' del
+     panel incluyen t y 'aprob_rate_period' es NULL justo cuando no cursó en t,
+     así que quitar solo las variables "del período" no alcanza.
 
   E (5a): los intervalos de confianza que no se solapan NO sustituyen una prueba
      de diferencia pareada. Se reporta ΔAUC con IC 95% por bootstrap PAREADO y
@@ -41,8 +43,11 @@ warnings.filterwarnings("ignore")
 TEST_PERIOD = "2023_1C"
 TRAIN_CUTOFF = shift_period(TEST_PERIOD, LABEL_HORIZON)   # 2021_1C
 
-RECENCY_IMMEDIATE = ["dias_desde_ult_actividad", "materias_en_periodo",
-                     "aprob_en_periodo", "nota_media_en_periodo"]
+# Variables que se toman de la fila t−1 (el panel es denso por legajo, sin huecos
+# entre períodos, así que lag() devuelve exactamente el período anterior).
+LAGGED = ["materias_win3", "aprob_win3", "nota_win3", "aprob_rate_win3", "materias_cum"]
+PREV_NUM = [c + "_prev" for c in LAGGED]
+PREV_CAT = ["cod_carrera_prev"]
 
 
 def build(num, cat, clf):
@@ -60,8 +65,15 @@ def gbm():
 
 
 def p_at_k(y, p, k=0.10):
-    order = np.argsort(-p)
-    return float(np.asarray(y)[order[:max(int(len(p) * k), 1)]].mean())
+    """Precision@K esperada con empates: si el corte cae dentro de un grupo de
+    puntajes iguales, ese grupo aporta su tasa de positivos (no un desempate
+    arbitrario del ordenamiento)."""
+    y, p = np.asarray(y, float), np.asarray(p, float)
+    n_k = max(int(len(p) * k), 1)
+    thr = np.sort(p)[::-1][n_k - 1]
+    above, tied = p > thr, p == thr
+    pos = y[above].sum() + (n_k - above.sum()) * y[tied].mean()
+    return float(pos / n_k)
 
 
 def paired_delta_auc(y, p1, p2, groups, n=500, seed=42):
@@ -90,36 +102,49 @@ def main():
         "SELECT * FROM marts.student_panel WHERE at_risk = 1 AND dropout_next IS NOT NULL",
         engine,
     )
-    df[FEATURES_NUM] = df[FEATURES_NUM].apply(pd.to_numeric, errors="coerce")
+    lags = ", ".join(f"lag({c}) over w as {c}_prev" for c in LAGGED + ["cod_carrera"])
+    prev = pd.read_sql(
+        f"SELECT legajo, academic_period, {lags} FROM marts.student_panel "
+        f"WINDOW w AS (PARTITION BY legajo ORDER BY academic_period)",
+        engine,
+    )
+    df = df.merge(prev, on=["legajo", "academic_period"], how="left", validate="1:1")
+    df[FEATURES_NUM + PREV_NUM] = df[FEATURES_NUM + PREV_NUM].apply(pd.to_numeric, errors="coerce")
     df["dropout_next"] = df["dropout_next"].astype(int)
 
     tr = df[df.academic_period <= TRAIN_CUTOFF]
     te = df[df.academic_period == TEST_PERIOD]
     y = te["dropout_next"].values
     leg = te["legajo"].astype(str).values
+    # Estudiantes cuyo primer período con cursada es el de prueba: no tienen fila t−1
+    # y la variante "solo hasta t-1" los ve con todo imputado. auc_con_t1 los excluye.
+    has_prev = te["materias_cum_prev"].notna().values
     print(f"Entrenamiento <= {TRAIN_CUTOFF}: {len(tr):,} | Prueba {TEST_PERIOD}: {len(te):,} "
           f"(prevalencia {y.mean():.3f})\n")
 
     # ── (D) Ablación ───────────────────────────────────────────────────────────
     variants = {
-        "completo": FEATURES_NUM,
-        "sin dias_desde_ult_actividad": [c for c in FEATURES_NUM if c != "dias_desde_ult_actividad"],
-        "sin recencia inmediata": [c for c in FEATURES_NUM if c not in RECENCY_IMMEDIATE],
+        "completo": (FEATURES_NUM, FEATURES_CAT),
+        "sin dias_desde_ult_actividad": ([c for c in FEATURES_NUM if c != "dias_desde_ult_actividad"],
+                                         FEATURES_CAT),
+        "solo hasta t-1": (PREV_NUM, PREV_CAT),
     }
     preds = {}
     abl_rows = []
-    for name, num in variants.items():
-        m = build(num, FEATURES_CAT, gbm()).fit(tr[num + FEATURES_CAT], tr["dropout_next"].values)
-        p = m.predict_proba(te[num + FEATURES_CAT])[:, 1]
+    for name, (num, cat) in variants.items():
+        m = build(num, cat, gbm()).fit(tr[num + cat], tr["dropout_next"].values)
+        p = m.predict_proba(te[num + cat])[:, 1]
         preds[name] = p
-        abl_rows.append(dict(variante=name, n_features=len(num) + 1,
-                             auc=round(roc_auc_score(y, p), 4), p_at_10=round(p_at_k(y, p), 4)))
+        abl_rows.append(dict(variante=name, n_features=len(num) + len(cat),
+                             auc=round(roc_auc_score(y, p), 4), p_at_10=round(p_at_k(y, p), 4),
+                             auc_con_t1=round(roc_auc_score(y[has_prev], p[has_prev]), 4)))
 
     # baseline de recencia puro (ordena por dias_desde_ult_actividad)
     base = te["dias_desde_ult_actividad"].fillna(te["dias_desde_ult_actividad"].median()).values.astype(float)
     preds["baseline recencia"] = base
     abl_rows.append(dict(variante="baseline recencia (solo dias)", n_features=1,
-                         auc=round(roc_auc_score(y, base), 4), p_at_10=round(p_at_k(y, base), 4)))
+                         auc=round(roc_auc_score(y, base), 4), p_at_10=round(p_at_k(y, base), 4),
+                         auc_con_t1=round(roc_auc_score(y[has_prev], base[has_prev]), 4)))
 
     # LogisticRegression completa (para la comparación pareada GBM vs LR)
     m_lr = build(FEATURES_NUM, FEATURES_CAT, LogisticRegression(
@@ -132,15 +157,15 @@ def main():
     print("=== (D) Ablación de features de recencia (test 2023_1C) ===")
     print(abl.to_string(index=False))
     full_auc = abl.loc[abl.variante == "completo", "auc"].iloc[0]
-    noimm_auc = abl.loc[abl.variante == "sin recencia inmediata", "auc"].iloc[0]
-    print(f"\nEl modelo SIN recencia inmediata (solo trayectoria de ventana/acumulada) "
-          f"mantiene AUC={noimm_auc:.3f}\nfrente a {full_auc:.3f} del completo: la "
-          f"trayectoria aporta señal predictiva por sí sola.")
+    prev_auc = abl.loc[abl.variante == "solo hasta t-1", "auc"].iloc[0]
+    base_auc = abl.loc[abl.variante == "baseline recencia (solo dias)", "auc"].iloc[0]
+    print(f"\nSolo con información hasta t−1: AUC={prev_auc:.3f}, frente a {full_auc:.3f} "
+          f"del completo y {base_auc:.3f} del baseline de recencia.")
 
     # ── (E) ΔAUC pareado ────────────────────────────────────────────────────────
     comparisons = [
         ("completo  −  baseline recencia", preds["completo"], preds["baseline recencia"]),
-        ("completo  −  sin recencia inmediata", preds["completo"], preds["sin recencia inmediata"]),
+        ("completo  −  solo hasta t-1", preds["completo"], preds["solo hasta t-1"]),
         ("GBM completo  −  LogisticRegression", preds["completo"], preds["logreg"]),
     ]
     pair_rows = []
