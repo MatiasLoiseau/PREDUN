@@ -73,7 +73,8 @@ ORIGINS = [(shift_period(t, LABEL_HORIZON), t) for t in TEST_PERIODS]
 
 # Experimento de dato incremental: test FIJO, corte de entrenamiento creciente
 # (todos respetan el embargo: <= FIXED_TEST - LABEL_HORIZON). Aísla el efecto de
-# incorporar más historia de entrenamiento sobre un mismo conjunto de prueba.
+# incorporar más historia de entrenamiento sobre un mismo conjunto de prueba, tanto
+# en la discriminación (AUC) como en la calibración (Brier, recalibración, ECE).
 FIXED_TEST = "2023_1C"
 INCREMENTAL_CUTOFFS = ["2019_2C", "2020_1C", "2020_2C", "2021_1C"]
 
@@ -289,10 +290,16 @@ def main():
             tr_f[FEATURES_NUM + FEATURES_CAT], tr_f["dropout_next"].values)
         pf = m.predict_proba(Xte_f)[:, 1]
         lo_f, hi_f = grouped_bootstrap_auc(yte_f, pf, leg_f)
+        slope_f, intercept_f = calibration(yte_f, pf)
         inc_rows.append(dict(
             train_cutoff=cut, test_period=FIXED_TEST, n_train=len(tr_f), n_test=len(te_f),
             auc=round(roc_auc_score(yte_f, pf), 4),
             auc_ci_low=round(lo_f, 4), auc_ci_high=round(hi_f, 4),
+            prevalence_train=round(float(tr_f["dropout_next"].mean()), 4),
+            prevalence_test=round(float(yte_f.mean()), 4), mean_p=round(float(pf.mean()), 4),
+            brier=round(brier_score_loss(yte_f, pf), 4),
+            calib_slope=round(slope_f, 3), calib_intercept=round(intercept_f, 3),
+            ece=round(ece(yte_f, pf), 4),
         ))
     inc = pd.DataFrame(inc_rows)
     print(f"\nExperimento incremental (test fijo = {FIXED_TEST}):")

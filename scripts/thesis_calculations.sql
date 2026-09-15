@@ -1632,6 +1632,90 @@ from (select importance from predictions.feature_importance
 --     -c "select source from model_versions where version='62';"
 
 
+-- -----------------------------------------------------------------------------
+-- C5.7  [OK]  Lectura del Brier Skill Score y del intercepto (l.457)
+--
+-- TEXTO: "el error probabilístico del modelo queda entre el 43 y el 52\% del que
+--         comete el predictor constante en la prevalencia" y "el intercepto
+--         positivo de los tres últimos períodos muestra que ahí el modelo
+--         subestima el nivel de riesgo"
+--
+-- Exacto. El error relativo es 1 - BSS. El intercepto es negativo solo en el
+-- primer período de prueba.
+-- -----------------------------------------------------------------------------
+select test_period,
+       round(brier_skill_score::numeric, 2)       as bss,
+       round((1 - brier_skill_score)::numeric, 2) as error_relativo,
+       round(calib_intercept::numeric, 3)         as intercepto
+from predictions.backtest_results
+order by test_period;
+-- 2021_2C  0,48  0,52  -0,020
+-- 2022_1C  0,53  0,47   0,352
+-- 2022_2C  0,54  0,46   0,353
+-- 2023_1C  0,57  0,43   0,335
+
+
+-- -----------------------------------------------------------------------------
+-- C5.8  [OK]  Calibración en el experimento de test fijo
+--
+-- TEXTO: "Reentrenar tampoco mejora la calibración. El Brier Score pasa de 0,1056
+--         a 0,1055, el intercepto de recalibración va de 0,29 a 0,34 y el Error
+--         de Calibración Esperado de 0,036 a 0,040. [...] la probabilidad que
+--         predice, de 0,40 en promedio, y la prevalencia de 0,436 del período de
+--         prueba. Los tres cuatrimestres que se suman al entrenamiento no ayudan
+--         a corregirla, porque su prevalencia está entre 0,33 y 0,34. La suba
+--         hasta 0,436 ocurre en los períodos posteriores al corte"
+--
+-- Exacto. Las columnas de calibración de backtest_incremental las agregó
+-- scripts/backtest_temporal.py el 2026-09-14. Las columnas previas (AUC e
+-- intervalos) no cambiaron.
+-- -----------------------------------------------------------------------------
+select train_cutoff,
+       round(mean_p::numeric, 3)          as prob_media,
+       round(prevalence_test::numeric, 3) as prev_prueba,
+       round(brier::numeric, 4)           as brier,
+       round(calib_intercept::numeric, 3) as intercepto,
+       round(ece::numeric, 4)             as ece
+from predictions.backtest_incremental
+order by train_cutoff;
+-- 2019_2C  0,405  0,436  0,1056  0,289  0,0362
+-- 2020_1C  0,400  0,436  0,1060  0,342  0,0406
+-- 2020_2C  0,398  0,436  0,1061  0,362  0,0418
+-- 2021_1C  0,400  0,436  0,1055  0,335  0,0396
+
+select academic_period, count(*) as filas,
+       round(avg(dropout_next::int), 3) as prevalencia
+from marts.student_panel
+where at_risk = 1 and dropout_next is not null
+  and academic_period between '2019_2C' and '2023_1C'
+group by academic_period
+order by academic_period;
+-- 2019_2C 0,372 | 2020_1C 0,335  2020_2C 0,334  2021_1C 0,342  <- los que se suman
+-- 2021_2C 0,364   2022_1C 0,408  2022_2C 0,438  2023_1C 0,436  <- después del corte
+
+
+-- -----------------------------------------------------------------------------
+-- C5.9  [OK]  Variables del período corriente en los grupos inactivos (l.518)
+--
+-- TEXTO: "las variables del período corriente valen cero en 9.894 de las 9.904
+--         filas"
+--
+-- Exacto. Solo 10 filas del grupo de 181 días tienen alguna materia en t.
+-- -----------------------------------------------------------------------------
+select dias_desde_ult_actividad as dias,
+       count(*)                                        as filas,
+       count(*) filter (where materias_en_periodo > 0) as con_materias_en_t
+from marts.student_panel
+where at_risk = 1 and dropout_next is not null
+  and academic_period = '2023_1C' and dias_desde_ult_actividad > 0
+group by dias_desde_ult_actividad
+order by dias;
+-- 181  3.331  10
+-- 365  3.633   0
+-- 546  2.940   0
+-- total 9.904 filas, 9.894 sin actividad en t
+
+
 -- #############################################################################
 -- CAPÍTULO 6 — DISCUSIÓN
 -- #############################################################################
@@ -1821,22 +1905,26 @@ order by segmento;
 
 
 -- -----------------------------------------------------------------------------
--- C7.1  [CONTROL]  El experimento de test fijo
+-- C7.1  [OK]  El experimento de test fijo
 --
 -- TEXTO: "dicho control mostró que sumar tres cuatrimestres de datos mueve el
---         AUC 0,0006 con intervalos solapados, de modo que el valor del
---         reentrenamiento periódico está en incorporar los períodos cuya
---         etiqueta acaba de madurar y no en acumular volumen."
+--         AUC 0,0006 con intervalos solapados y tampoco mejora la calibración.
+--         En el período observado, reentrenar no aportó una mejora medible."
 --
 -- Exacto. Con el período de prueba fijo en 2023_1C, mover el corte de
 -- entrenamiento de 2019_2C a 2021_1C (tres cuatrimestres más, de 155.141 a
 -- 213.107 filas) mueve el AUC de 0,9298 a 0,9304. Los intervalos se solapan por
--- completo.
+-- completo. La calibración tampoco mejora (ver C5.8).
+--
+-- La versión anterior del texto decía que el valor del reentrenamiento estaba
+-- en "incorporar los períodos cuya etiqueta acaba de madurar". El experimento
+-- agrega justamente esos períodos y no mejora nada, así que se reformuló.
 -- -----------------------------------------------------------------------------
 select train_cutoff, test_period, n_train, n_test,
        round(auc::numeric, 4)         as auc,
        round(auc_ci_low::numeric, 4)  as ci_low,
-       round(auc_ci_high::numeric, 4) as ci_high
+       round(auc_ci_high::numeric, 4) as ci_high,
+       round(brier::numeric, 4)       as brier
 from predictions.backtest_incremental
 order by train_cutoff;
 -- 2019_2C  155.141  0,9298  [0,9266; 0,9325]
