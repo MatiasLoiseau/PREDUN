@@ -1724,6 +1724,117 @@ order by dias;
 -- total 9.904 filas, 9.894 sin actividad en t
 
 
+-- -----------------------------------------------------------------------------
+-- C5.10  [OK]  El período de borde cambia etiquetas de validación (dictamen G5)
+--
+-- TEXTO: "Si se comparan las dos entregas, cambian 193 de las 23.685 etiquetas
+--         de validación y 191 de ellas pasan de abandono a no abandono. Con el
+--         mismo modelo, el AUC es de 0,930 con las etiquetas de la entrega
+--         2025_2C y de 0,933 con las de la entrega 2025_1C [...] En el ciclo
+--         2024_2C sucede lo mismo con 226 etiquetas de 2022_2C [...] si se toma
+--         2024 como referencia, solo 2 de los 13.472 estudiantes con actas del
+--         primer cuatrimestre las tuvieron todas después de esa fecha"
+--
+-- Exacto. El AUC sale de scripts/borde_etiquetas_validacion.py (réplica del
+-- GBM del ciclo, que reproduce el 0,9304 registrado en model_evaluations):
+--   modelo entrega 2025_2C  etiquetas 2025_1C 0,9330 | etiquetas 2025_2C 0,9304
+--   modelo entrega 2025_1C  etiquetas 2025_1C 0,9332 | etiquetas 2025_2C 0,9306
+-- No se da una cifra de cuánto se infló el AUC del ciclo 2025_1C, porque
+-- depende de qué modelo se use (0,9329 registrado - 0,9306 réplica = 0,002, o
+-- 0,9332 - 0,9306 = 0,003). La comparación con el mismo modelo sí es exacta.
+-- -----------------------------------------------------------------------------
+select a.academic_period, count(*) as filas,
+       count(*) filter (where a.dropout_next <> b.dropout_next)            as distintas,
+       count(*) filter (where a.dropout_next = 1 and b.dropout_next = 0)   as de_1_a_0
+from recon.panel_2025_1c a
+join recon.panel_2025_2c b using (legajo, cod_carrera, academic_period)
+where a.academic_period = '2023_1C' and a.at_risk = 1 and b.at_risk = 1
+  and a.dropout_next is not null and b.dropout_next is not null
+group by 1;
+-- 2023_1C  23.685  193  191
+
+-- Los 191 son estudiantes que volvieron en 2025_1C (fecha de acta) sin actividad
+-- en 2023_2C a 2024_2C:
+with f as (
+    select a.legajo
+    from recon.panel_2025_1c a
+    join recon.panel_2025_2c b using (legajo, cod_carrera, academic_period)
+    where a.academic_period = '2023_1C' and a.at_risk = 1 and b.at_risk = 1
+      and a.dropout_next = 1 and b.dropout_next = 0),
+act as (
+    select legajo, trim(fecha)::date as d
+    from canonical.cursada_historica
+    where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+select count(distinct legajo) as de_1_a_0,
+       count(distinct legajo) filter (where exists (
+           select 1 from act where act.legajo = f.legajo
+             and d between '2025-03-01' and '2025-08-31')) as activos_2025_1C,
+       count(distinct legajo) filter (where exists (
+           select 1 from act where act.legajo = f.legajo
+             and d between '2023-09-01' and '2025-02-28')) as activos_en_el_medio
+from f;
+-- 191 | 190 | 0
+
+-- Ciclo 2024_2C: de 1 a 0 en 2022_2C por volver solo en 2024_2C. El resto de
+-- los 624 cambios es del archivo de avance (las 1.907 filas del texto).
+with f as (
+    select a.legajo
+    from recon.panel_2024_2c a
+    join recon.panel_2025_2c b using (legajo, cod_carrera, academic_period)
+    where a.academic_period = '2022_2C' and a.at_risk = 1 and b.at_risk = 1
+      and a.dropout_next = 1 and b.dropout_next = 0),
+act as (
+    select legajo, trim(fecha)::date as d
+    from canonical.cursada_historica
+    where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+select count(distinct legajo) as de_1_a_0,
+       count(distinct legajo) filter (where
+           exists (select 1 from act where act.legajo = f.legajo
+                     and d between '2024-09-01' and '2025-02-28')
+           and not exists (select 1 from act where act.legajo = f.legajo
+                     and d between '2023-03-01' and '2024-08-31')) as por_el_borde
+from f;
+-- 624 | 226
+
+-- El ciclo final no quedó expuesto. Se usa 2024 como referencia del corte del
+-- 4 de agosto (última acta de la entrega 2025_2C):
+with c as (
+    select legajo, trim(fecha)::date as d
+    from canonical.cursada_historica
+    where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+select count(distinct legajo) filter (where d between '2024-03-01' and '2024-08-31') as legajos_1C_2024,
+       (select count(*) from (
+            select legajo from c where d between '2024-03-01' and '2024-08-31'
+            group by legajo having max((d <= '2024-08-04')::int) = 0) x)        as solo_despues_4_ago,
+       count(*) filter (where d between '2024-03-01' and '2024-08-31')          as eventos_1C_2024,
+       count(*) filter (where d between '2025-03-01' and '2025-08-31')          as eventos_1C_2025
+from c;
+-- 13.472 | 2 | 41.307 | 45.084
+
+-- Actas cargadas tarde: legajos con actas del 1C de 2024 que están en la entrega
+-- 2025_2C y no estaban en la 2024_2C (última acta 2024-09-10):
+select count(*) as solo_en_2025_2C
+from (select distinct legajo from canonical.cursada_historica
+      where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        and trim(fecha)::date between '2024-03-01' and '2024-08-31') n
+where legajo not in (
+      select legajo from canonical.cursada_historica_history
+      where academic_period = '2024_2C'
+        and trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        and trim(fecha)::date between '2024-03-01' and '2024-08-31');
+-- 0
+
+-- Unificar criterios bajo la fecha real no arregla el borde (Cap. 6): en la
+-- entrega 2025_1C el período 2025_1C tiene 248 eventos de 244 legajos, contra
+-- 19.202 filas en riesgo.
+select count(*) as eventos, count(distinct legajo) as legajos
+from canonical.cursada_historica_history
+where academic_period = '2025_1C'
+  and trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+  and trim(fecha)::date >= '2025-03-01';
+-- 248 | 244
+
+
 -- #############################################################################
 -- CAPÍTULO 6 — DISCUSIÓN
 -- #############################################################################
