@@ -225,8 +225,22 @@ for model_name, clf in model_candidates:
         mlflow.log_param("train_size",            X_train.shape[0])
         mlflow.log_param("val_size",              X_val.shape[0])
         mlflow.log_param("train_period_cutoff",   TRAIN_CUTOFF)
+        mlflow.log_param("val_period",            VAL_PERIOD)
+        mlflow.log_param("label_horizon",         LABEL_HORIZON)
+        mlflow.log_param("train_sample_frac",     TRAIN_SAMPLE_FRAC)
         mlflow.log_param("num_features",          len(FEATURE_COLS_NUM))
         mlflow.log_param("cat_features",          len(FEATURE_COLS_CAT))
+
+        # Hiperparámetros del clasificador y del preprocesamiento, con prefijo
+        # hp_. Sin esto el run no permite reconstruir la configuración que
+        # produjo el modelo: el hash del commit no alcanza cuando el árbol de
+        # trabajo tiene cambios sin confirmar (git_dirty=true).
+        mlflow.log_params({{f"hp_{{k}}": v for k, v in clf.get_params().items()}})
+        _prep_steps = {{n: t for n, t, _ in pipeline.named_steps["prep"].transformers}}
+        mlflow.log_param("hp_num_imputer_strategy",
+                         _prep_steps["num"].named_steps["imputer"].strategy)
+        mlflow.log_param("hp_cat_imputer_strategy",
+                         _prep_steps["cat"].named_steps["imputer"].strategy)
 
         _ds = mlflow.data.from_pandas(
             pd.DataFrame({{"academic_period": train_periods}}),
@@ -325,6 +339,8 @@ client.set_model_version_tag("student_dropout_model", str(mv.version), "data_ver
 client.set_model_version_tag("student_dropout_model", str(mv.version), "thesis_run",   "true")
 client.set_model_version_tag("student_dropout_model", str(mv.version), "git_commit",   GIT_COMMIT)
 client.set_model_version_tag("student_dropout_model", str(mv.version), "git_dirty",    GIT_DIRTY)
+client.set_model_version_tag("student_dropout_model", str(mv.version), "staging_periods",
+                             ",".join(staging_periods))
 
 print(f"  Registrado como student_dropout_model v{{mv.version}}")
 print(f"  Tags automáticos: data_version={{cycle_period}}, staging_periods={{staging_periods}}")
