@@ -1,4 +1,4 @@
-from dagster import RunRequest, SkipReason, sensor
+from dagster import DefaultSensorStatus, RunRequest, SkipReason, sensor
 from dagster_dbt import get_asset_key_for_model
 from .jobs import drift_train_predict
 from .assets import dbt_project_assets
@@ -13,7 +13,13 @@ PANEL_KEY = get_asset_key_for_model(
 # y scoring. Apuntar a drift_train_predict (y no a refresh_canonical) evita la
 # auto-referencia: el ciclo de ML no re-materializa el panel, por lo que el
 # sensor no se re-dispara a sí mismo.
-@sensor(job=drift_train_predict, minimum_interval_seconds=3600)
+@sensor(
+    job=drift_train_predict,
+    minimum_interval_seconds=3600,
+    # Sin esto Dagster crea el sensor APAGADO y el ciclo continuo no arranca
+    # hasta que alguien lo prende a mano en la UI.
+    default_status=DefaultSensorStatus.RUNNING,
+)
 def new_period_sensor(context):
     records = context.instance.get_event_log_records(
         asset_key=PANEL_KEY,

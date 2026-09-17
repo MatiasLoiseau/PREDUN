@@ -20,7 +20,8 @@
     - Horizonte de abandono: 4 períodos (2 años) sin actividad académica
       institucional posterior al período t, consistente con la definición
       operacional de abandono del sistema (student_status).
-    - Censura a la derecha ESTRICTA y asimétrica:
+    - Censura a la derecha ESTRICTA (se evalúa ANTES que la actividad, así que
+      es simétrica: la ventana incompleta manda sobre cualquier otra condición):
         * Si los 4 períodos futuros NO son observables  -> NULL (censura).
         * Si se observa actividad en la ventana futura   -> 0 (el estudiante
           retomó dentro del horizonte; no es abandono).
@@ -31,8 +32,7 @@
       plenamente observados, evitando positivos prematuros.
     - Finalización curricular estimada: el porcentaje de avance disponible es un
       único snapshot (no historizado), por lo que la exclusión por finalización
-      estimada NO es estrictamente point-in-time. Se aplica solo dentro de la
-      ventana plenamente observada para acotar el sesgo. Limitación documentada:
+      estimada NO es estrictamente point-in-time. Limitación documentada:
       requiere padrón oficial de egreso con fecha para corregirse.
 
   Conjunto de riesgo (at_risk):
