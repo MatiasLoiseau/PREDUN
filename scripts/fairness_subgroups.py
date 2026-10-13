@@ -151,7 +151,9 @@ def main():
         ax.axhline(overall["auc"], color="#1565C0", ls=":", lw=1, alpha=0.7)
         ax.set_xticks(x); ax.set_xticklabels(blk["valor"], rotation=10)
         ax.set_title(label); ax.set_ylim(0, 1); ax.legend(fontsize=8)
-    fig.suptitle("Desempeño del modelo por subgrupo demográfico (test 2023-1C)", y=1.02)
+    fig.suptitle(
+        f"Desempeño del modelo por subgrupo demográfico (período de validación {TEST_PERIOD.replace('_', '-')})",
+        y=1.02)
     fig.tight_layout()
     path = os.path.join(THESIS_FIGS_DIR, "fairness_subgroups.png")
     fig.savefig(path); plt.close(fig)

@@ -116,7 +116,9 @@ def load_drift_metrics(engine, version: str | None = None) -> pd.DataFrame:
 # ── Plot 1: Barras PSI por feature para un ciclo ──────────────────────────────
 def plot_psi_bars(df: pd.DataFrame, version: str, out_dir: str):
     df_sorted = df.sort_values("psi_value", ascending=True).copy()
-    label = VERSION_LABELS.get(version, version)
+    ciclo = version.replace("_", "-")
+    # La referencia se lee de la tabla: el activo la recalcula en cada ciclo
+    referencia = str(df["reference_period"].iloc[0]).replace("_", "-")
 
     fig, ax = plt.subplots(figsize=(8, max(4, len(df_sorted) * 0.52)))
 
@@ -143,8 +145,8 @@ def plot_psi_bars(df: pd.DataFrame, version: str, out_dir: str):
     ax.set_yticklabels(df_sorted["feature_label"].tolist(), fontsize=9)
     ax.set_xlabel("Population Stability Index (PSI)")
     ax.set_title(
-        f"Deriva de datos por feature — {label}\n"
-        f"Referencia: entrenamiento (≤ 2022-2C)  |  Actual: validación post-corte",
+        f"Deriva de datos por feature — ciclo {ciclo}\n"
+        f"Referencia: entrenamiento (≤ {referencia})  |  Actual: períodos siguientes al corte",
         fontsize=11,
     )
     ax.set_xlim(0, max(df_sorted["psi_value"].max() * 1.18, 0.35))
