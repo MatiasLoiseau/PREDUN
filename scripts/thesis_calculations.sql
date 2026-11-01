@@ -416,7 +416,8 @@ order by v.anios;
 -- 3 años   26.181   47,31 %
 -- 4 años   20.486   37,02 %
 
--- Contraste con el análisis que ya justifica el horizonte (Cap. 4):
+-- Contraste con el análisis que ya justifica el horizonte (Cap. 4, recalculado
+-- desde canonical en C4.8):
 select * from predictions.sensitivity_horizon order by horizonte_periodos;
 -- horizonte 4 períodos (2 años) -> tasa de reactivación 8,43 %
 
@@ -1354,14 +1355,207 @@ select
 from marts.student_panel;
 -- 687.186 | 394.362 | 304.175 | 29 | 2011_1C | 2025_1C
 
--- La tabla de sensibilidad del horizonte (tab:horizon_sensitivity) reproduce
--- exacto contra predictions.sensitivity_horizon. Ver también C1.11.
+
+-- -----------------------------------------------------------------------------
+-- C4.8  [OK]  tab:horizon_sensitivity, recalculada desde canonical (y H = 1)
+--
+-- TEXTO: "Con un plazo de un solo período, el 27,2 % de las inactividades que
+--         se marcarían como abandono son en realidad pasajeras. Con dos
+--         períodos la proporción baja al 15,5 %, y al pasar a cuatro se reduce
+--         casi a la mitad, hasta el 8,4 %. Si se extiende el plazo a seis
+--         períodos, la proporción disminuye solo hasta el 5,6 %, y a cambio se
+--         excluyen casi 5.000 legajos"
+--
+-- Antes la tabla solo se leía de predictions.sensitivity_horizon, que escribe
+-- scripts/sensitivity_horizon.py. Esta consulta la rehace desde
+-- canonical.cursada_historica con la misma lógica (2026-11-01):
+--   - cada acta va al período por su fecha, igual que marts/student_panel.sql
+--     (mar-ago -> 1C, sep-dic -> 2C, ene-feb -> 2C del año anterior);
+--   - hueco interno: períodos vacíos entre dos períodos con actividad;
+--   - hueco final: desde la última actividad hasta el cierre (2025_1C);
+--   - legajos en abandono: hueco final >= H y avance < 90 %;
+--   - tasa de reactivación: internos >= H / (internos >= H + finales >= H). Se
+--     cuenta por hueco (un legajo puede aportar varios) y los huecos finales de
+--     los finalizados quedan en el denominador, como en el script.
+-- La fila de H = 1 se sumó a la tabla, a la figura y al texto el 2026-11-01.
+-- La figura anterior rotulaba 5,5 % en H = 6 porque redondeaba dos veces
+-- (0,0555 y después 5,55); la nueva sale de los conteos y dice 5,6 %, como la
+-- tabla. Las tres últimas columnas son controles: la tasa
+-- por legajo (la de U31), la tasa sin los huecos finales de los finalizados y
+-- la tasa sin ningún hueco de los finalizados. En H >= 2 ninguna se aleja más
+-- de un punto de la tasa del texto.
+-- -----------------------------------------------------------------------------
+with act as (
+    -- períodos con actividad de cada legajo; pidx = anio*2, +1 si es 2C
+    select distinct
+        legajo,
+        case
+            when extract(month from trim(fecha)::date) between 3 and 8
+                then extract(year from trim(fecha)::date)::int * 2
+            when extract(month from trim(fecha)::date) >= 9
+                then extract(year from trim(fecha)::date)::int * 2 + 1
+            else (extract(year from trim(fecha)::date)::int - 1) * 2 + 1
+        end as pidx
+    from canonical.cursada_historica
+    where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+),
+cierre as (
+    select max(pidx) as pidx_max from act        -- 4050 = 2025_1C
+),
+huecos as (
+    select legajo, 'interno' as tipo, siguiente - pidx - 1 as largo
+    from (select legajo, pidx,
+                 lead(pidx) over (partition by legajo order by pidx) as siguiente
+          from act) s
+    where siguiente - pidx - 1 >= 1
+    union all
+    select a.legajo, 'final', c.pidx_max - max(a.pidx)
+    from act a cross join cierre c
+    group by a.legajo, c.pidx_max
+),
+finalizacion as (
+    select distinct legajo
+    from canonical.porcentaje_avance
+    where coalesce(case when trim(porcentaje_avance) ~ '^[0-9]+([.,][0-9]+)?$'
+                        then replace(trim(porcentaje_avance), ',', '.')::numeric end, 0) >= 90
+),
+conteos as (
+    select
+        h.h,
+        count(*) filter (where x.tipo = 'final' and f.legajo is null)      as abandono,
+        count(*) filter (where x.tipo = 'final' and f.legajo is not null)  as finalizacion_excluida,
+        count(*) filter (where x.tipo = 'interno')                         as internos,
+        count(*) filter (where x.tipo = 'final')                           as finales,
+        count(*) filter (where x.tipo = 'interno' and f.legajo is null)    as internos_sin_fin,
+        count(distinct x.legajo)                                           as legajos_con_hueco,
+        count(distinct x.legajo) filter (where x.tipo = 'interno')         as legajos_que_volvieron
+    from huecos x
+    left join finalizacion f using (legajo)
+    join (values (1), (2), (3), (4), (6)) as h(h) on x.largo >= h.h
+    group by h.h
+)
+select
+    h                                                                   as horizonte,
+    round(h / 2.0, 1)                                                   as anios,
+    abandono                                                            as legajos_en_abandono,
+    finalizacion_excluida,
+    internos,
+    finales,
+    round(internos::numeric / (internos + finales), 4)                  as tasa_reactivacion,
+    round(legajos_que_volvieron::numeric / legajos_con_hueco, 4)        as tasa_por_legajo,
+    round(internos::numeric / (internos + abandono), 4)                 as tasa_sin_finales_finalizados,
+    round(internos_sin_fin::numeric / (internos_sin_fin + abandono), 4) as tasa_sin_finalizados
+from conteos
+order by h;
+-- H  años  abandono  finaliz.  internos  finales  tasa    por legajo  sin fin. finales  sin finalizados
+-- 1  0,5   38.573    3.190     15.612    41.763   0,2721  0,2556      0,2881            0,2628
+-- 2  1,0   35.979    2.754      7.086    38.733   0,1547  0,1507      0,1645            0,1501
+-- 3  1,5   33.648    2.463      4.468    36.111   0,1101  0,1087      0,1172            0,1067
+-- 4  2,0   31.047    2.149      3.055    33.196   0,0843  0,0839      0,0896            0,0818
+-- 6  3,0   26.209    1.668      1.639    27.877   0,0555  0,0558      0,0589            0,0543
+-- Las filas de 2 a 6 coinciden con predictions.sensitivity_horizon, que no
+-- tiene la de H = 1 porque no se volvió a grabar. De 4 a 6 períodos salen
+-- 4.838 legajos ("casi 5.000"). De 2 a 4 la tasa queda en el 54,5 % de la de 2
+-- (15,47 -> 8,43), "casi a la mitad". Con H = 1, el 27,2 % de las
+-- inactividades resultó pasajera (25,6 % por legajo).
 select horizonte_periodos, anios, abandono_legajos, tasa_reactivacion
 from predictions.sensitivity_horizon
 order by horizonte_periodos;
 -- 2  1,0  35.979  0,1547     3  1,5  33.648  0,1101
 -- 4  2,0  31.047  0,0843     6  3,0  26.209  0,0555
--- La caída de 4 a 6 períodos deja afuera 4.838 legajos ("casi 5.000").
+
+-- Control: los mismos huecos desde marts.student_panel, donde la actividad en t
+-- es dias_desde_ult_actividad = 0 y la grilla ya trae los períodos vacíos.
+with g as (
+    select legajo, dias_desde_ult_actividad = 0 as activo,
+           row_number() over (partition by legajo order by academic_period) as rn
+    from marts.student_panel
+),
+act as (select legajo, rn from g where activo),
+ultimo as (select legajo, max(rn) as rn_fin from g group by legajo),
+huecos as (
+    select 'interno' as tipo, sig - rn - 1 as largo
+    from (select legajo, rn, lead(rn) over (partition by legajo order by rn) as sig
+          from act) s
+    where sig - rn - 1 >= 1
+    union all
+    select 'final', u.rn_fin - max(a.rn)
+    from act a join ultimo u using (legajo)
+    group by a.legajo, u.rn_fin
+)
+select h.h,
+       count(*) filter (where tipo = 'interno') as internos,
+       count(*) filter (where tipo = 'final')   as finales
+from huecos
+join (values (1), (2), (3), (4), (6)) as h(h) on largo >= h.h
+group by h.h
+order by h.h;
+-- 1  15.612  41.763    2  7.086  38.733    3  4.468  36.111
+-- 4   3.055  33.196    6  1.639  27.877    (idénticos)
+
+-- Control: H = 4 contra marts.student_status, que corta los dos años por fecha
+-- (última acta antes del 2023-08-04) y no por período (2023_1C cierra el 31 de
+-- agosto). La diferencia son los legajos con la última acta entre esas fechas.
+with ultima as (
+    select legajo, max(trim(fecha)::date) as fecha_ultima
+    from canonical.cursada_historica
+    group by legajo
+),
+finalizacion as (
+    select distinct legajo
+    from canonical.porcentaje_avance
+    where coalesce(case when trim(porcentaje_avance) ~ '^[0-9]+([.,][0-9]+)?$'
+                        then replace(trim(porcentaje_avance), ',', '.')::numeric end, 0) >= 90
+)
+select
+    (select count(*) from marts.student_status s
+      where s.status = 'abandonó'
+        and exists (select 1 from ultima u where u.legajo = s.legajo))         as status_abandono,
+    count(*) filter (where u.fecha_ultima <= '2023-08-31' and f.legajo is null) as h4_por_periodo,
+    count(*) filter (where u.fecha_ultima between '2023-08-04' and '2023-08-31'
+                       and f.legajo is null)                                    as diferencia
+from ultima u
+left join finalizacion f using (legajo);
+-- 31.044 | 31.047 | 3
+
+-- Control para H = 1: de los 8.526 huecos internos de un solo período, en 221
+-- (2,6 %) el legajo tenía una cursada declarada (anio, tipo_cursada) en ese
+-- período con el acta fechada en otro. Los demás son períodos sin ninguna
+-- cursada. El cierre no recorta el último período: 13.572 legajos activos en
+-- 2025_1C contra 13.472 en 2024_1C, y con el corte del 4 de agosto en 2024
+-- solo 2 tuvieron todas sus actas después (C5.10).
+with act as (
+    select distinct
+        legajo,
+        case
+            when extract(month from trim(fecha)::date) between 3 and 8
+                then extract(year from trim(fecha)::date)::int * 2
+            when extract(month from trim(fecha)::date) >= 9
+                then extract(year from trim(fecha)::date)::int * 2 + 1
+            else (extract(year from trim(fecha)::date)::int - 1) * 2 + 1
+        end as pidx
+    from canonical.cursada_historica
+    where trim(coalesce(fecha, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+),
+huecos_de_1 as (
+    select legajo, pidx + 1 as pidx_hueco
+    from (select legajo, pidx,
+                 lead(pidx) over (partition by legajo order by pidx) as siguiente
+          from act) s
+    where siguiente - pidx - 1 = 1
+),
+declarado as (
+    select distinct legajo,
+           anio::int * 2 + case when tipo_cursada = '2C' then 1 else 0 end as pidx
+    from canonical.cursada_historica
+    where tipo_cursada in ('1C', '2C') and anio ~ '^[0-9]{4}$'
+)
+select count(*)                                       as huecos_de_1,
+       count(*) filter (where d.legajo is not null)   as con_cursada_declarada,
+       round(100.0 * count(*) filter (where d.legajo is not null) / count(*), 1) as pct
+from huecos_de_1 h
+left join declarado d on d.legajo = h.legajo and d.pidx = h.pidx_hueco;
+-- 8.526 | 221 | 2,6
 
 
 -- #############################################################################
